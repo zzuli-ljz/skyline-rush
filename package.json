@@ -1,0 +1,11 @@
+{
+  "name": "skyline-rush",
+  "version": "1.0.0",
+  "description": "天际疾行 — 3D 第一人称天台跑酷（Three.js + WebGL）",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --target=es2020 --outfile=assets/game.js",
+    "test": "node tools/cdp-test.mjs"
+  }
+}

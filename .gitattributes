@@ -1,0 +1,7 @@
+# 统一换行符，避免跨平台 diff 噪音
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

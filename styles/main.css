@@ -1,0 +1,95 @@
+/* 天际疾行 · Skyline Rush */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; background: #120b08; }
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #f3e9dd;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+#app { position: fixed; inset: 0; }
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 暗角与颗粒 */
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(8, 4, 2, 0.55) 100%); }
+.grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.05; background-image: repeating-conic-gradient(rgba(255,255,255,0.6) 0 0.0001%, transparent 0 0.0002%); mix-blend-mode: overlay; }
+
+/* 过载速度线 */
+#speedlines { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 3.2deg, rgba(255, 190, 120, 0.14) 3.4deg 3.7deg, transparent 3.9deg 7deg);
+  mask-image: radial-gradient(circle at center, transparent 34%, black 78%);
+  -webkit-mask-image: radial-gradient(circle at center, transparent 34%, black 78%);
+}
+#speedlines.on { opacity: 1; animation: spin 26s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- HUD ---- */
+.hud { position: absolute; inset: 0; pointer-events: none; padding: max(18px, env(safe-area-inset-top)) 26px; display: flex; justify-content: space-between; align-items: flex-start; transition: opacity 0.3s; }
+.hud.hidden { opacity: 0; }
+.hud-left .brand { font-size: 12px; letter-spacing: 4px; opacity: 0.85; }
+.hud-left .brand b { color: #ffb35c; }
+.hud-left .brand span { margin-left: 6px; color: #8fd8ff; }
+.dist-wrap { font-size: 52px; font-weight: 800; line-height: 1.05; text-shadow: 0 2px 18px rgba(0,0,0,0.6); font-variant-numeric: tabular-nums; }
+.dist-wrap i { font-style: normal; font-size: 20px; opacity: 0.6; margin-left: 4px; }
+.best { font-size: 13px; opacity: 0.75; letter-spacing: 1px; }
+.best b { color: #ffd9a0; }
+
+.hud-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.chip-row { display: flex; align-items: center; gap: 8px; font-size: 26px; font-weight: 700; text-shadow: 0 2px 12px rgba(0,0,0,0.6); }
+.chip-ico { width: 16px; height: 16px; background: linear-gradient(135deg, #ffd9a0, #ff9a3c); border-radius: 3px; transform: rotate(45deg); box-shadow: 0 0 12px rgba(255, 170, 60, 0.9); }
+.energy { width: 150px; height: 8px; border-radius: 6px; background: rgba(255,255,255,0.14); overflow: hidden; }
+#energyFill { height: 100%; width: 0%; border-radius: 6px; background: linear-gradient(90deg, #ff9a3c, #ffd9a0); transition: width 0.2s; }
+#energyFill.ready { animation: pulse 0.9s ease-in-out infinite; }
+@keyframes pulse { 50% { filter: brightness(1.6); } }
+#odHint { font-size: 11px; letter-spacing: 2px; opacity: 0.35; transition: opacity 0.2s; }
+#odHint.ready { opacity: 1; color: #ffd9a0; text-shadow: 0 0 10px rgba(255, 190, 100, 0.8); }
+
+/* ---- Toast ---- */
+.toast { position: absolute; top: 22%; left: 50%; transform: translateX(-50%) translateY(-8px); background: rgba(20, 12, 8, 0.78); border: 1px solid rgba(255, 179, 92, 0.4); padding: 10px 22px; border-radius: 999px; font-size: 15px; letter-spacing: 2px; opacity: 0; transition: all 0.3s; pointer-events: none; backdrop-filter: blur(6px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---- 全屏界面 ---- */
+.screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 6, 4, 0.45); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity 0.35s; }
+.screen.visible { opacity: 1; pointer-events: auto; }
+.panel { text-align: center; padding: 42px 56px; border-radius: 22px; background: rgba(18, 11, 8, 0.72); border: 1px solid rgba(255, 179, 92, 0.22); box-shadow: 0 30px 80px rgba(0,0,0,0.55); max-width: min(92vw, 560px); }
+
+.kicker { font-size: 11px; letter-spacing: 6px; color: #8fd8ff; margin-bottom: 12px; }
+h1 { font-size: 58px; font-weight: 900; letter-spacing: 10px; background: linear-gradient(180deg, #ffe3bd, #ff8f4a); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 10px 40px rgba(255, 130, 50, 0.35); }
+.title-panel .sub { font-size: 14px; letter-spacing: 9px; color: #9aa7b8; margin: 6px 0 18px; }
+.desc { font-size: 14.5px; line-height: 1.9; opacity: 0.82; margin-bottom: 24px; }
+
+.btn { cursor: pointer; border: none; border-radius: 999px; font-size: 16px; font-weight: 700; letter-spacing: 3px; padding: 13px 40px; transition: transform 0.15s, box-shadow 0.2s; }
+.btn.primary { background: linear-gradient(135deg, #ff9a3c, #ff6a2a); color: #fff7ee; box-shadow: 0 8px 30px rgba(255, 120, 40, 0.45); }
+.btn.primary:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 40px rgba(255, 130, 50, 0.6); }
+.btn.ghost { background: rgba(255,255,255,0.08); color: #e8ddd0; border: 1px solid rgba(255,255,255,0.2); }
+.btn.ghost:hover { background: rgba(255,255,255,0.15); }
+#startBtn { font-size: 18px; padding: 15px 56px; margin-bottom: 26px; }
+
+.keys { display: inline-flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+.key-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+.key-row em { font-style: normal; opacity: 0.7; margin: 0 6px; }
+.kbd { display: inline-block; min-width: 30px; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); border-bottom-width: 2.5px; font-size: 11.5px; font-weight: 700; letter-spacing: 1px; }
+.kbd.wide { padding: 3px 14px; }
+.hint { font-size: 11.5px; opacity: 0.45; letter-spacing: 1px; }
+
+/* 结算 */
+.death-label { font-size: 14px; opacity: 0.65; letter-spacing: 2px; margin-bottom: 22px; }
+.final-grid { display: flex; gap: 34px; justify-content: center; margin-bottom: 18px; }
+.final-cell { display: flex; flex-direction: column; gap: 6px; }
+.final-cell i { font-style: normal; font-size: 12px; letter-spacing: 3px; opacity: 0.55; }
+.final-cell b { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.final-cell b em { font-style: normal; font-size: 15px; opacity: 0.5; margin-left: 3px; }
+.new-record { display: none; color: #ffd9a0; letter-spacing: 4px; font-size: 15px; text-shadow: 0 0 16px rgba(255, 190, 100, 0.9); margin-bottom: 18px; animation: pulse 1s ease-in-out infinite; }
+.new-record.visible { display: block; }
+.btn-row { display: flex; gap: 14px; justify-content: center; }
+.pause-panel h2 { letter-spacing: 8px; margin-bottom: 24px; }
+
+/* ---- 触屏 ---- */
+#touchArea { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; display: none; }
+#touchUI { position: absolute; right: 18px; bottom: max(24px, env(safe-area-inset-bottom)); display: none; flex-direction: column; gap: 14px; }
+#touchUI.on { display: flex; }
+#touchArea.on { display: block; }
+.tbtn { width: 68px; height: 68px; border-radius: 50%; background: rgba(255, 190, 120, 0.16); border: 1.5px solid rgba(255, 190, 120, 0.5); color: #ffe3bd; font-size: 21px; font-weight: 800; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.tbtn.dash { background: rgba(140, 210, 255, 0.16); border-color: rgba(140, 210, 255, 0.5); color: #bfe7ff; }
+.tbtn:active { transform: scale(0.92); }

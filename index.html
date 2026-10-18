@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#120b08" />
+<title>天际疾行 · Skyline Rush</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌆</text></svg>" />
+<link rel="stylesheet" href="./styles/main.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div class="vignette"></div>
+  <div class="grain"></div>
+  <div id="speedlines"></div>
+
+  <div id="hud" class="hud hidden">
+    <div class="hud-left">
+      <div class="brand"><b>SKYLINE</b><span>RUSH</span></div>
+      <div class="dist-wrap"><span id="dist">0</span><i>m</i></div>
+      <div class="best">最佳 <b id="best">0</b> m</div>
+    </div>
+    <div class="hud-right">
+      <div class="chip-row"><span class="chip-ico"></span><b id="coins">0</b></div>
+      <div class="energy"><div id="energyFill"></div></div>
+      <div id="odHint">SHIFT · 过载冲刺</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="title" class="screen visible">
+    <div class="panel title-panel">
+      <div class="kicker">SUNSET ROOFTOP PARKOUR</div>
+      <h1>天际疾行</h1>
+      <div class="sub">SKYLINE RUSH</div>
+      <p class="desc">黄昏雨后，你在城市之巅朝着落日狂奔。<br/>跨越楼缝、钻过横梁、收集芯片，释放过载冲刺。</p>
+      <button id="startBtn" class="btn primary">开始奔跑</button>
+      <div class="keys">
+        <div class="key-row"><span class="kbd">A</span><span class="kbd">D</span><em>左右移动</em></div>
+        <div class="key-row"><span class="kbd wide">SPACE</span><em>跳跃</em></div>
+        <div class="key-row"><span class="kbd">S</span><em>滑铲 / 空中下压</em></div>
+        <div class="key-row"><span class="kbd">SHIFT</span><em>过载冲刺（耗能 50）</em></div>
+        <div class="key-row"><span class="kbd">Esc</span><em>暂停</em><span class="kbd">M</span><em>静音</em></div>
+      </div>
+      <div class="hint">手机：左侧拖动移动 · 点按跳跃 · 按钮滑铲/冲刺</div>
+    </div>
+  </div>
+
+  <div id="over" class="screen">
+    <div class="panel over-panel">
+      <div id="deathLabel" class="death-label">你坠入了楼与楼之间的黄昏</div>
+      <div class="final-grid">
+        <div class="final-cell"><i>奔跑距离</i><b><span id="finalDist">0</span><em>m</em></b></div>
+        <div class="final-cell"><i>芯片</i><b id="finalCoins">0</b></div>
+        <div class="final-cell"><i>最佳</i><b><span id="finalBest">0</span><em>m</em></b></div>
+      </div>
+      <div id="newRecord" class="new-record">★ 新纪录 ★</div>
+      <div class="btn-row">
+        <button id="retryBtn" class="btn primary">再跑一次</button>
+        <button id="homeBtn" class="btn ghost">回到首页</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pause" class="screen">
+    <div class="panel pause-panel">
+      <h2>已暂停</h2>
+      <div class="btn-row">
+        <button id="resumeBtn" class="btn primary">继续</button>
+        <button id="quitBtn" class="btn ghost">回到首页</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="touchArea"></div>
+  <div id="touchUI">
+    <div id="btnJump" class="tbtn">跳</div>
+    <div id="btnSlide" class="tbtn">滑</div>
+    <div id="btnDash" class="tbtn dash">冲</div>
+  </div>
+</div>
+<script src="./assets/game.js"></script>
+</body>
+</html>
