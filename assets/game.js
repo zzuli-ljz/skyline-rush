@@ -21773,7 +21773,7 @@ void main() {
           this.vy = damp(this.vy, this.pos.y < cruise ? climb : 0, 8, dt);
           this.pos.y += this.vy * dt;
           if (cur && this.pos.y < cur.y) this.pos.y = Math.min(cur.y, this.pos.y + 12 * dt);
-        } else if (this.glideT > 0) {
+        } else if (this.glideT > 0 && !input2.slideHeld) {
           this.vy = Math.max(this.vy - G * 0.3 * dt, -3.6);
           this.pos.y += this.vy * dt;
           const floor = this.lastGroundY - 2.5;
@@ -21782,6 +21782,11 @@ void main() {
             this.vy = 0;
           }
         } else {
+          if (this.glideT > 0) {
+            this.glideT = 0;
+            this.vy = Math.min(this.vy, -14);
+            this.audio.slide();
+          }
           this.vy -= G * dt;
           this.pos.y += this.vy * dt;
         }
@@ -22324,6 +22329,7 @@ void main() {
   var deathDelay = 0;
   var timeScale = 1;
   var ghostZ = 0;
+  var glideWas = false;
   var shakeT = 0;
   var fov2 = 76;
   var quality = 2;
@@ -22343,6 +22349,7 @@ void main() {
     energy = 0;
     odT = 0;
     odCd = 0;
+    glideWas = false;
     streak = 0;
     deathDelay = 0;
     timeScale = 1;
@@ -22526,6 +22533,9 @@ void main() {
     if (running) {
       dist += speed * dt;
       player.update(dt, input, city, speed, actions, odT > 0);
+      const gliding = player.glideT > 0;
+      if (gliding && !glideWas) hud.toast(isCoarse ? "\u4E0B\u62C9\u53EF\u7ACB\u5373\u843D\u5730" : "S / \u2193 \u53EF\u7ACB\u5373\u843D\u5730", 1200);
+      glideWas = gliding;
     } else if (mode === "run") {
       player.update(dt, input, city, speed, actions, false);
       deathDelay -= rawDt;
