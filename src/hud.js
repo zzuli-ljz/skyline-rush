@@ -21,8 +21,11 @@ export class HUD {
       newRecord: $('newRecord'),
       deathLabel: $('deathLabel'),
       touchUI: $('touchUI'),
+      gestureHint: $('gestureHint'),
+      dashBtn: $('btnDash'),
     };
     this._toastT = null;
+    this._hintT = null;
     this._lastDist = -1;
   }
 
@@ -40,6 +43,11 @@ export class HUD {
     this.el.energyFill.classList.toggle('ready', energy >= 50 && !odActive && !cooling);
     this.el.odHint.classList.toggle('ready', energy >= 50 && !odActive && !cooling);
     this.el.odHint.textContent = cooling ? `过载冷却 ${Math.ceil(odCd)}s` : '过载就绪 · SHIFT';
+    // 触屏冲刺按钮状态
+    if (this.el.dashBtn) {
+      this.el.dashBtn.classList.toggle('ready', energy >= 50 && !odActive && !cooling);
+      this.el.dashBtn.classList.toggle('cool', cooling || odActive);
+    }
   }
 
   speedFx(on) {
@@ -48,6 +56,19 @@ export class HUD {
 
   touch(on) {
     this.el.touchUI.classList.toggle('on', on);
+    document.getElementById('touchArea').classList.toggle('on', on);
+    // 首次上手：亮出手势提示 5 秒
+    if (on && this.el.gestureHint) {
+      const seen = sessionStorage.getItem('sr-touch-seen');
+      if (!seen) {
+        sessionStorage.setItem('sr-touch-seen', '1');
+        this.el.gestureHint.classList.add('show');
+        clearTimeout(this._hintT);
+        this._hintT = setTimeout(() => this.el.gestureHint.classList.remove('show'), 5000);
+      }
+    } else if (this.el.gestureHint) {
+      this.el.gestureHint.classList.remove('show');
+    }
   }
 
   showScreen(name) {
