@@ -22101,9 +22101,12 @@ void main() {
         finalBest: $("finalBest"),
         newRecord: $("newRecord"),
         deathLabel: $("deathLabel"),
-        touchUI: $("touchUI")
+        touchUI: $("touchUI"),
+        gestureHint: $("gestureHint"),
+        dashBtn: $("btnDash")
       };
       this._toastT = null;
+      this._hintT = null;
       this._lastDist = -1;
     }
     hud(dist2, best2, coins2, energy2, odActive, odCd2 = 0) {
@@ -22120,12 +22123,28 @@ void main() {
       this.el.energyFill.classList.toggle("ready", energy2 >= 50 && !odActive && !cooling);
       this.el.odHint.classList.toggle("ready", energy2 >= 50 && !odActive && !cooling);
       this.el.odHint.textContent = cooling ? `\u8FC7\u8F7D\u51B7\u5374 ${Math.ceil(odCd2)}s` : "\u8FC7\u8F7D\u5C31\u7EEA \xB7 SHIFT";
+      if (this.el.dashBtn) {
+        this.el.dashBtn.classList.toggle("ready", energy2 >= 50 && !odActive && !cooling);
+        this.el.dashBtn.classList.toggle("cool", cooling || odActive);
+      }
     }
     speedFx(on) {
       this.el.speedlines.classList.toggle("on", on);
     }
     touch(on) {
       this.el.touchUI.classList.toggle("on", on);
+      document.getElementById("touchArea").classList.toggle("on", on);
+      if (on && this.el.gestureHint) {
+        const seen = sessionStorage.getItem("sr-touch-seen");
+        if (!seen) {
+          sessionStorage.setItem("sr-touch-seen", "1");
+          this.el.gestureHint.classList.add("show");
+          clearTimeout(this._hintT);
+          this._hintT = setTimeout(() => this.el.gestureHint.classList.remove("show"), 5e3);
+        }
+      } else if (this.el.gestureHint) {
+        this.el.gestureHint.classList.remove("show");
+      }
     }
     showScreen(name) {
       for (const k of ["title", "over", "pause"]) {
@@ -22161,6 +22180,7 @@ void main() {
       this.dashQueued = false;
       this.onEscape = null;
       this.onMute = null;
+      this.onFullscreen = null;
       this._touchAxis = 0;
       this._bind();
     }
@@ -22176,6 +22196,7 @@ void main() {
         if (k === "ShiftLeft" || k === "ShiftRight") this.dashQueued = true;
         if (k === "Escape" && this.onEscape) this.onEscape();
         if (k === "KeyM" && this.onMute) this.onMute();
+        if (k === "KeyF" && this.onFullscreen) this.onFullscreen();
       });
       window.addEventListener("keyup", (e) => {
         this.keys[e.code] = false;
@@ -22183,19 +22204,26 @@ void main() {
       window.addEventListener("blur", () => {
         this.keys = {};
       });
-      let dragId = null;
-      let startX = 0;
-      let t0 = 0;
-      const area = document.getElementById("touchArea");
       const isTouch = matchMedia("(pointer: coarse)").matches;
+      this.isTouch = isTouch;
+      const area = document.getElementById("touchArea");
       if (isTouch && area) {
+        const clamp1 = (v) => Math.max(-1, Math.min(1, v));
+        let id = null;
+        let x0 = 0;
+        let y0 = 0;
+        let t0 = 0;
+        let jumped = false;
         area.addEventListener(
           "touchstart",
           (e) => {
+            if (id !== null) return;
             const t = e.changedTouches[0];
-            dragId = t.identifier;
-            startX = t.clientX;
+            id = t.identifier;
+            x0 = t.clientX;
+            y0 = t.clientY;
             t0 = performance.now();
+            jumped = false;
           },
           { passive: true }
         );
@@ -22203,41 +22231,45 @@ void main() {
           "touchmove",
           (e) => {
             for (const t of e.changedTouches) {
-              if (t.identifier === dragId) {
-                this._touchAxis = Math.max(-1, Math.min(1, (t.clientX - startX) / 70));
+              if (t.identifier !== id) continue;
+              const dx = t.clientX - x0;
+              const dy = t.clientY - y0;
+              this._touchAxis = clamp1(dx / 60);
+              if (!jumped && dy < -42 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+                jumped = true;
+                this.jumpQueued = true;
               }
+              this._slideTouch = dy > 34 && Math.abs(dy) > Math.abs(dx) * 0.8;
             }
           },
           { passive: true }
         );
         const end = (e) => {
           for (const t of e.changedTouches) {
-            if (t.identifier === dragId) {
-              if (performance.now() - t0 < 220 && Math.abs(t.clientX - startX) < 14) {
-                this.jumpQueued = true;
-              }
-              dragId = null;
-              this._touchAxis = 0;
-            }
+            if (t.identifier !== id) continue;
+            const dt = performance.now() - t0;
+            const dx = t.clientX - x0;
+            const dy = t.clientY - y0;
+            if (!jumped && dt < 220 && Math.hypot(dx, dy) < 18) this.jumpQueued = true;
+            id = null;
+            this._touchAxis = 0;
+            this._slideTouch = false;
           }
         };
         area.addEventListener("touchend", end, { passive: true });
         area.addEventListener("touchcancel", end, { passive: true });
-        const bindBtn = (id, down, up) => {
-          const el = document.getElementById(id);
-          el.addEventListener("touchstart", (e) => {
-            e.preventDefault();
-            down();
-          }, { passive: false });
-          if (up) el.addEventListener("touchend", up), el.addEventListener("touchcancel", up);
-        };
-        bindBtn("btnJump", () => this.jumpQueued = true);
-        bindBtn(
-          "btnSlide",
-          () => this._slideTouch = true,
-          () => this._slideTouch = false
-        );
-        bindBtn("btnDash", () => this.dashQueued = true);
+        const dashBtn = document.getElementById("btnDash");
+        if (dashBtn) {
+          dashBtn.addEventListener(
+            "touchstart",
+            (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              this.dashQueued = true;
+            },
+            { passive: false }
+          );
+        }
       }
     }
     update() {
@@ -22317,8 +22349,17 @@ void main() {
     mode = "run";
     hud.showScreen(null);
     hud.touch(isCoarse);
+    if (isCoarse && !fsEl()) toggleFullscreen();
+    syncRotate();
     audio.ui();
   }
+  function syncRotate() {
+    const hint = document.getElementById("rotateHint");
+    if (!hint) return;
+    const portrait = window.innerHeight > window.innerWidth;
+    hint.classList.toggle("show", isCoarse && portrait && mode === "run");
+  }
+  window.addEventListener("resize", syncRotate);
   function gameOver() {
     mode = "over";
     const d = dist | 0;
@@ -22332,6 +22373,7 @@ void main() {
     hud.showScreen("over");
     hud.touch(false);
     hud.speedFx(false);
+    syncRotate();
   }
   function backToTitle() {
     mode = "title";
@@ -22339,18 +22381,22 @@ void main() {
     city.reset();
     hud.showScreen("title");
     hud.speedFx(false);
+    hud.touch(false);
+    syncRotate();
   }
   function pause() {
     if (mode !== "run") return;
     mode = "pause";
     hud.showScreen("pause");
     hud.touch(false);
+    syncRotate();
   }
   function resume() {
     if (mode !== "pause") return;
     mode = "run";
     hud.showScreen(null);
     hud.touch(isCoarse);
+    syncRotate();
   }
   function bindUI(id, fn) {
     const el = document.getElementById(id);
@@ -22373,6 +22419,41 @@ void main() {
     audio.setMuted(!audio.muted);
     hud.toast(audio.muted ? "\u{1F507} \u5DF2\u9759\u97F3" : "\u{1F50A} \u5DF2\u5F00\u542F\u58F0\u97F3", 1200);
   };
+  var fsBtn = document.getElementById("fsBtn");
+  var fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  async function toggleFullscreen() {
+    try {
+      if (!fsEl()) {
+        const el = document.documentElement;
+        if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: "hide" });
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        if (isCoarse && screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock("landscape").catch(() => {
+          });
+        }
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    } catch (e) {
+      hud.toast("\u5F53\u524D\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u5168\u5C4F", 1400);
+    }
+  }
+  function syncFsBtn() {
+    if (!fsBtn) return;
+    fsBtn.textContent = fsEl() ? "\u26F6" : "\u26F6";
+    fsBtn.classList.toggle("on", !!fsEl());
+    fsBtn.title = fsEl() ? "\u9000\u51FA\u5168\u5C4F\uFF08F\uFF09" : "\u5168\u5C4F\uFF08F\uFF09";
+  }
+  fsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fsBtn.blur();
+    toggleFullscreen();
+  });
+  document.addEventListener("fullscreenchange", syncFsBtn);
+  document.addEventListener("webkitfullscreenchange", syncFsBtn);
+  input.onFullscreen = toggleFullscreen;
   var clock = new Clock();
   var elapsed = 0;
   function animate() {
