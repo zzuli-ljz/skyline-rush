@@ -21688,6 +21688,8 @@ void main() {
       this.landKick = 0;
       this.lastGroundY = 10;
       this.prevY = 10;
+      this.glideT = 0;
+      this._odPrev = false;
       this._v = new Vector3();
     }
     reset(z) {
@@ -21705,6 +21707,8 @@ void main() {
       this.landKick = 0;
       this.lastGroundY = 10;
       this.prevY = 10;
+      this.glideT = 0;
+      this._odPrev = false;
     }
     get height() {
       return this.sliding ? H_SLIDE : H_STAND;
@@ -21719,6 +21723,9 @@ void main() {
         return;
       }
       this.pos.z += speed2 * dt;
+      if (this._odPrev && !overdrive && !this.grounded) this.glideT = 2;
+      this._odPrev = overdrive;
+      if (this.glideT > 0) this.glideT -= dt;
       this.vx = damp(this.vx, -input2.axis * LAT_SPEED, 11, dt);
       this.pos.x = clamp2(this.pos.x + this.vx * dt, -30, 30);
       if (input2.slideHeld && this.grounded && !this.sliding) {
@@ -21760,6 +21767,14 @@ void main() {
           this.vy = damp(this.vy, this.pos.y < cruise ? climb : 0, 8, dt);
           this.pos.y += this.vy * dt;
           if (cur && this.pos.y < cur.y) this.pos.y = Math.min(cur.y, this.pos.y + 12 * dt);
+        } else if (this.glideT > 0) {
+          this.vy = Math.max(this.vy - G * 0.3 * dt, -3.6);
+          this.pos.y += this.vy * dt;
+          const floor = this.lastGroundY - 2.5;
+          if (this.pos.y < floor) {
+            this.pos.y = floor;
+            this.vy = 0;
+          }
         } else {
           this.vy -= G * dt;
           this.pos.y += this.vy * dt;
@@ -21793,13 +21808,14 @@ void main() {
         this.grounded = true;
         this.lastGroundY = groundY;
         this.coyote = 0.11;
+        this.glideT = 0;
       } else if (this.grounded && (groundY === null || this.pos.y > groundY + 0.05)) {
         this.grounded = false;
         this.vy = Math.min(this.vy, 0);
         this.coyote = 0.11;
       }
       this.prevY = this.pos.y;
-      if (!overdrive) {
+      if (!overdrive && this.glideT <= 0) {
         const top = this.pos.y + this.height;
         for (const o of city2.obstaclesNear(this.pos.z, 1.5)) {
           if (this.pos.x + R > o.x0 && this.pos.x - R < o.x1 && this.pos.z + 0.3 > o.z0 && this.pos.z - 0.3 < o.z1 && top > o.y0 && this.pos.y < o.y1) {
@@ -21808,7 +21824,9 @@ void main() {
           }
         }
       }
-      if (!seg && this.alive && !overdrive && this.pos.y < this.lastGroundY - 9) this.die("fall");
+      if (!seg && this.alive && !overdrive && this.glideT <= 0 && this.pos.y < this.lastGroundY - 9) {
+        this.die("fall");
+      }
       if (this.grounded && !this.sliding) {
         const prev = Math.sin(this.bobPhase);
         this.bobPhase += dt * speed2 * 0.62;
