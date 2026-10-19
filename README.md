@@ -46,7 +46,7 @@
 | 过载冲刺（耗能 50） | `Shift` |
 | 暂停 / 静音 | `Esc` / `M` |
 
-手机等触屏设备：**左侧拖动**横向移动、**轻点**跳跃，右下角有滑铲和冲刺按钮。
+手机等触屏设备：**左右滑动**转向、**上滑/轻点**跳跃、**下拉按住**滑铲、右下角**冲刺**按钮（就绪时发光）；支持一键全屏。
 
 **小技巧：**
 - 空中按滑铲会**急速下坠**，可以用来精准落上矮平台；
@@ -139,7 +139,7 @@ The rain just stopped. You're on the tallest rooftop in the city, and ahead of y
 | Overdrive (50 energy) | `Shift` |
 | Pause / Mute | `Esc` / `M` |
 
-Touch devices: drag on the left to steer, tap to jump, dedicated slide/dash buttons on the right.
+Touch devices: slide left/right to steer, swipe up (or tap) to jump, drag down and hold to slide, and a dash button bottom-right (glows when ready). Fullscreen supported.
 
 **Tips:** pressing slide mid-air slams you down for precise landings; coyote time + jump buffering make edge jumps forgiving; Overdrive makes you invincible **and lets you glide** — it lifts you to a cruise altitude above the rooftops so gaps can't kill you mid-dash (tap Space to climb higher). When the dash ends over a gap, a 2-second soft-landing glide takes over and drops you safely onto the next rooftop.
 
