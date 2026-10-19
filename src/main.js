@@ -7,6 +7,7 @@ import { Particles } from './fx.js';
 import { AudioEngine } from './audio.js';
 import { HUD } from './hud.js';
 import { Input } from './input.js';
+import { Daylight } from './daylight.js';
 import { clamp, damp } from './utils.js';
 
 // 运行时错误可视化（调试用）
@@ -28,6 +29,7 @@ const city = new City(stage, fx);
 const player = new Player(stage, audio, fx);
 const hud = new HUD();
 const input = new Input();
+const daylight = new Daylight(stage, city);
 
 const isCoarse = matchMedia('(pointer: coarse)').matches;
 const BEST_KEY = 'skyline-rush-best';
@@ -46,6 +48,7 @@ let deathDelay = 0;
 let timeScale = 1;
 let ghostZ = 0;
 let glideWas = false;
+let lastPhase = 0;
 let shakeT = 0;
 let fov = 76;
 let quality = 2;
@@ -69,6 +72,8 @@ function startGame() {
   odT = 0;
   odCd = 0;
   glideWas = false;
+  lastPhase = 0;
+  daylight.update(0);
   streak = 0;
   deathDelay = 0;
   timeScale = 1;
@@ -245,6 +250,7 @@ function animate() {
       stage.camera.fov = 62;
       stage.camera.updateProjectionMatrix();
     }
+    daylight.update(0);
     stage.update(dt, stage.camera.position);
     stage.render();
     return;
@@ -339,6 +345,15 @@ function animate() {
 
   // 世界更新
   city.update(player.pos.z);
+  // 日光推进：每 400m 一档，纯视觉，不参与物理
+  daylight.update(dist);
+  if (mode === 'run' && daylight.phase !== lastPhase) {
+    lastPhase = daylight.phase;
+    hud.toast(
+      ['', '落日更低了一点', '余晖褪去 · 城市亮灯', '蓝调时刻 · 霓虹亮起'][daylight.phase] || '',
+      1600
+    );
+  }
   city.animateCoins(elapsed);
   fx.update(dt);
   audio.setWind(clamp((speed - 10) / 26, 0, 1) + (odT > 0 ? 0.15 : 0));
@@ -385,6 +400,7 @@ window.__game = {
   startGame,
   player,
   city,
+  daylight,
   get dist() {
     return dist;
   },
@@ -399,6 +415,10 @@ window.__game = {
   },
   debug: {
     giveEnergy: (n) => (energy = Math.min(100, energy + n)),
+    setDist: (v) => {
+      dist = v;
+      daylight.update(v);
+    },
   },
 };
 
