@@ -130,10 +130,31 @@ await sleep(200);
 const od2 = await evaluate(`JSON.stringify({odT:+window.__game.odT.toFixed(1),odCd:+window.__game.odCd.toFixed(1)})`);
 console.log('OD-CAST:', od1, ' AFTER-4.2s-RECAST:', od2, JSON.parse(od2).odT === 0 ? 'OK（冷却中禁止再放）' : '❌ 仍可连放');
 
+// 滑翔验证：过载期间把玩家悬在缺口上空 → 应回升到巡航高度而不是坠落
+// （先重开一局清掉上一段测试留下的冷却）
+await evaluate(`document.getElementById('retryBtn').click()`);
+await sleep(1200);
+await evaluate(`window.__game.debug.giveEnergy(100)`);
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{code:'ShiftLeft'}))`);
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keyup',{code:'ShiftLeft'}))`);
+await sleep(200);
+const odCast = await evaluate(`JSON.stringify({odT:+window.__game.odT.toFixed(1),odCd:+window.__game.odCd.toFixed(1)})`);
+await evaluate(
+  `(()=>{const g=window.__game,p=g.player;p.pos.set(0,9.0,46);p.prevY=9;p.vy=-3;p.grounded=false;p.vx=0;p.lastGroundY=10;return 1})()`
+);
+await sleep(900);
+const glideState = await evaluate(
+  `(()=>{const g=window.__game,p=g.player;return JSON.stringify({y:+p.pos.y.toFixed(2),alive:p.alive,odT:+g.odT.toFixed(1)})})()`
+);
+console.log('OD-CAST@GLIDE:', odCast);
+console.log('GLIDE-TEST:', glideState, JSON.parse(glideState).alive && JSON.parse(glideState).y > 9.5 ? 'OK（滑翔越过缺口）' : '❌ 坠落或未爬升');
+await evaluate(`document.getElementById('retryBtn').click()`);
+await sleep(1000);
+
 // 坠楼吸附验证：把玩家放到平台下方下坠，不应被吸回楼顶
 const fallRes = await evaluate(
   `(()=>{const g=window.__game,p=g.player;
-    p.pos.set(0, 6, 5); p.vy=-2; p.grounded=false; p.vx=0; p.lastGroundY=10;
+    p.pos.set(0, 6, 5); p.prevY=6; p.vy=-2; p.grounded=false; p.vx=0; p.lastGroundY=10;
     return 1})()`
 );
 await sleep(500);
@@ -160,6 +181,7 @@ const axisOK = x1 < x0 && x2 > x1;
 const focusOK = focusEl !== 'BUTTON#retryBtn';
 const odOK = JSON.parse(od1).odT > 0 && JSON.parse(od2).odT === 0;
 const fallOK = JSON.parse(fallState).y < 9;
+const glideOK = JSON.parse(glideState).alive && JSON.parse(glideState).y > 9.5;
 
 // 坠楼死亡后重开，再进入回正测试
 await evaluate(`document.getElementById('retryBtn').click()`);
@@ -199,10 +221,11 @@ const pass =
   focusOK &&
   odOK &&
   fallOK &&
+  glideOK &&
   errors.length === 0;
 console.log(
   pass ? 'ALL PASS ✅' : 'FAILED ❌',
-  JSON.stringify({ d2gt: d2 > d1, retry: modeRetry === 'run', distPost: dAfter > dBefore, axisOK, focusOK, odOK, fallOK, noErr: errors.length === 0 })
+  JSON.stringify({ d2gt: d2 > d1, retry: modeRetry === 'run', distPost: dAfter > dBefore, axisOK, focusOK, odOK, fallOK, glideOK, noErr: errors.length === 0 })
 );
 
 ws.close();

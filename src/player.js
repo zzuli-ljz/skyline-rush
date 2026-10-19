@@ -96,14 +96,30 @@ export class Player {
         count: 8, speed: 2.5, up: 1, life: 0.4, spread: 0.5, gravity: 4,
       });
     }
+    // 过载期间空中按跳跃 = 飞行小跳（继续拔高）
+    if (overdrive && !this.grounded && actions.jump) this.vy = Math.max(this.vy, 5.5);
 
-    // 空中按下 = 快速下压
-    if (!this.grounded && input.slideHeld) this.vy = Math.min(this.vy, -13);
+    // 空中按下 = 快速下压（过载滑翔时禁用，避免和升力打架）
+    if (!this.grounded && input.slideHeld && !overdrive) this.vy = Math.min(this.vy, -13);
 
-    // 重力
+    // 重力 / 过载滑翔
     if (!this.grounded) {
-      this.vy -= G * dt;
-      this.pos.y += this.vy * dt;
+      if (overdrive) {
+        // 滑翔：不累积下坠，升到巡航高度（当前/前方楼顶 + 1.2m）后平飞
+        const cur = city.platformAt(this.pos.x, this.pos.z);
+        const ahead = city.platformAt(this.pos.x, this.pos.z + speed * 0.3);
+        let base = this.lastGroundY;
+        if (cur) base = Math.max(base, cur.y);
+        if (ahead) base = Math.max(base, ahead.y);
+        const cruise = base + 1.2;
+        const climb = this.pos.y < base + 0.4 ? 12 : 4.5; // 前方有更高的楼要提前爬
+        this.vy = damp(this.vy, this.pos.y < cruise ? climb : 0, 8, dt);
+        this.pos.y += this.vy * dt;
+        if (cur && this.pos.y < cur.y) this.pos.y = Math.min(cur.y, this.pos.y + 12 * dt);
+      } else {
+        this.vy -= G * dt;
+        this.pos.y += this.vy * dt;
+      }
     }
 
     // ---- 地面判定 ----
@@ -160,8 +176,8 @@ export class Player {
       }
     }
 
-    // ---- 坠楼 ----
-    if (!seg && this.alive && this.pos.y < this.lastGroundY - 9) this.die('fall');
+    // ---- 坠楼（过载滑翔期间不会坠楼）----
+    if (!seg && this.alive && !overdrive && this.pos.y < this.lastGroundY - 9) this.die('fall');
 
     // ---- 脚步声与镜头晃动 ----
     if (this.grounded && !this.sliding) {

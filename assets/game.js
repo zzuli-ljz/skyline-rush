@@ -21746,10 +21746,24 @@ void main() {
           gravity: 4
         });
       }
-      if (!this.grounded && input2.slideHeld) this.vy = Math.min(this.vy, -13);
+      if (overdrive && !this.grounded && actions.jump) this.vy = Math.max(this.vy, 5.5);
+      if (!this.grounded && input2.slideHeld && !overdrive) this.vy = Math.min(this.vy, -13);
       if (!this.grounded) {
-        this.vy -= G * dt;
-        this.pos.y += this.vy * dt;
+        if (overdrive) {
+          const cur = city2.platformAt(this.pos.x, this.pos.z);
+          const ahead = city2.platformAt(this.pos.x, this.pos.z + speed2 * 0.3);
+          let base = this.lastGroundY;
+          if (cur) base = Math.max(base, cur.y);
+          if (ahead) base = Math.max(base, ahead.y);
+          const cruise = base + 1.2;
+          const climb = this.pos.y < base + 0.4 ? 12 : 4.5;
+          this.vy = damp(this.vy, this.pos.y < cruise ? climb : 0, 8, dt);
+          this.pos.y += this.vy * dt;
+          if (cur && this.pos.y < cur.y) this.pos.y = Math.min(cur.y, this.pos.y + 12 * dt);
+        } else {
+          this.vy -= G * dt;
+          this.pos.y += this.vy * dt;
+        }
       }
       const seg = city2.platformAt(this.pos.x, this.pos.z);
       let groundY = seg ? seg.y : null;
@@ -21794,7 +21808,7 @@ void main() {
           }
         }
       }
-      if (!seg && this.alive && this.pos.y < this.lastGroundY - 9) this.die("fall");
+      if (!seg && this.alive && !overdrive && this.pos.y < this.lastGroundY - 9) this.die("fall");
       if (this.grounded && !this.sliding) {
         const prev = Math.sin(this.bobPhase);
         this.bobPhase += dt * speed2 * 0.62;
