@@ -165,6 +165,15 @@ const odEndState = await evaluate(
     glideT:+p.glideT.toFixed(2),odT:+g.odT.toFixed(1),lastGroundY:p.lastGroundY,death:p.deathType,mode:g.mode})})()`
 );
 console.log('OD-END-OVER-GAP:', odEndState, JSON.parse(odEndState).glideT > 0 && JSON.parse(odEndState).alive ? 'OK（缓降接管，没掉下去）' : '❌ 坠楼');
+
+// 缓降期间按住"下"应该主动收伞、立刻加速落地
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyS'}))`);
+await sleep(220);
+const cancelState = await evaluate(
+  `(()=>{const p=window.__game.player;return JSON.stringify({glideT:+p.glideT.toFixed(2),vy:+p.vy.toFixed(1),grounded:p.grounded,y:+p.pos.y.toFixed(1)})})()`
+);
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyS'}))`);
+console.log('GLIDE-CANCEL:', cancelState, JSON.parse(cancelState).glideT === 0 ? 'OK（按下立即收伞落地）' : '❌ 无法主动收伞');
 await evaluate(`document.getElementById('retryBtn').click()`);
 await sleep(1000);
 
@@ -199,6 +208,7 @@ const focusOK = focusEl !== 'BUTTON#retryBtn';
 const odOK = JSON.parse(od1).odT > 0 && JSON.parse(od2).odT === 0;
 const fallOK = JSON.parse(fallState).y < 9;
 const glideOK = JSON.parse(glideState).alive && JSON.parse(glideState).y > 9.5;
+const cancelOK = JSON.parse(cancelState).glideT === 0 && (JSON.parse(cancelState).vy <= -10 || JSON.parse(cancelState).grounded);
 const odEndOK = JSON.parse(odEndState).glideT > 0 && JSON.parse(odEndState).alive;
 
 // 坠楼死亡后重开，再进入回正测试
@@ -241,10 +251,11 @@ const pass =
   fallOK &&
   glideOK &&
   odEndOK &&
+  cancelOK &&
   errors.length === 0;
 console.log(
   pass ? 'ALL PASS ✅' : 'FAILED ❌',
-  JSON.stringify({ d2gt: d2 > d1, retry: modeRetry === 'run', distPost: dAfter > dBefore, axisOK, focusOK, odOK, fallOK, glideOK, odEndOK, noErr: errors.length === 0 })
+  JSON.stringify({ d2gt: d2 > d1, retry: modeRetry === 'run', distPost: dAfter > dBefore, axisOK, focusOK, odOK, fallOK, glideOK, odEndOK, cancelOK, noErr: errors.length === 0 })
 );
 
 ws.close();
