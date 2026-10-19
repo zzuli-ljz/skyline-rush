@@ -3,7 +3,7 @@ import base64, json, os, sys, urllib.request
 TOKEN = os.environ["GITHUB_TOKEN"]
 REPO = "zzuli-ljz/skyline-rush"
 BRANCH = "main"
-MSG = "fix: 消除隐形墙式误判碰撞"
+MSG = os.environ.get("COMMIT_MSG", "fix: 消除隐形墙式误判碰撞")
 FILES = sys.argv[1:]
 
 def api(path, method="GET", data=None):
