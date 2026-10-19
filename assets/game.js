@@ -20906,6 +20906,7 @@ void main() {
 
   // src/scene.js
   var SUN_DIR = new Vector3(0.24, 0.58, 1).normalize();
+  var LIGHT_MIN_Y = 0.24;
   var SKY_VERT = (
     /* glsl */
     `
@@ -20925,6 +20926,7 @@ void main() {
   uniform vec3 uGround;
   uniform vec3 uSunColor;
   uniform vec3 uSunDir;
+  uniform float uSunGain;
   void main() {
     vec3 d = normalize(vDir);
     float h = d.y;
@@ -20932,8 +20934,8 @@ void main() {
       ? mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.55))
       : mix(uHorizon, uGround, pow(clamp(-h, 0.0, 1.0), 0.7));
     float sd = max(dot(d, uSunDir), 0.0);
-    // \u592A\u9633\u76D8\u9762 + \u4E24\u5C42\u5149\u6655
-    col += uSunColor * (pow(sd, 1600.0) * 5.0 + pow(sd, 80.0) * 0.55 + pow(sd, 6.0) * 0.24);
+    // \u592A\u9633\u76D8\u9762 + \u4E24\u5C42\u5149\u6655\uFF08uSunGain \u8BA9\u65E5\u843D\u540E\u76D8\u9762\u6DE1\u51FA\uFF0C\u53EA\u5269\u4F59\u6656\uFF09
+    col += uSunColor * (pow(sd, 1600.0) * 5.0 * uSunGain + pow(sd, 80.0) * 0.55 + pow(sd, 6.0) * 0.24);
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -20969,7 +20971,8 @@ void main() {
         uHorizon: { value: new Color(15238991) },
         uGround: { value: new Color(2365984) },
         uSunColor: { value: new Color(16767392) },
-        uSunDir: { value: SUN_DIR.clone() }
+        uSunDir: { value: SUN_DIR.clone() },
+        uSunGain: { value: 1 }
       }
     });
     const sky = new Mesh(skyGeo, skyMat);
@@ -20984,7 +20987,8 @@ void main() {
     }
     const hemi = new HemisphereLight(9681151, 3813936, 0.68);
     scene.add(hemi);
-    scene.add(new AmbientLight(4608634, 0.4));
+    const ambientLight = new AmbientLight(4608634, 0.4);
+    scene.add(ambientLight);
     const sun = new DirectionalLight(16760970, 2.6);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -20999,10 +21003,8 @@ void main() {
     sun.shadow.normalBias = 0.03;
     scene.add(sun);
     scene.add(sun.target);
-    const ground = new Mesh(
-      new PlaneGeometry(4e3, 4e3),
-      new MeshStandardMaterial({ color: 855828, roughness: 1 })
-    );
+    const groundMat = new MeshStandardMaterial({ color: 855828, roughness: 1 });
+    const ground = new Mesh(new PlaneGeometry(4e3, 4e3), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.05;
     scene.add(ground);
@@ -21043,19 +21045,38 @@ void main() {
       resize(true);
     }
     let rainT = 0;
+    const lightDir = SUN_DIR.clone();
+    function setLightDir(x, y, z) {
+      lightDir.set(x, Math.max(y, LIGHT_MIN_Y), z).normalize();
+    }
     function update(dt, focus) {
       rainT += dt;
       rain.mat.uniforms.uTime.value = rainT;
       sky.position.copy(camera.position);
       rain.obj.position.set(camera.position.x, 0, camera.position.z);
-      sun.position.copy(focus).addScaledVector(SUN_DIR, 160);
+      sun.position.copy(focus).addScaledVector(lightDir, 160);
       sun.target.position.copy(focus);
       sun.target.updateMatrixWorld();
     }
     function render() {
       composer.render();
     }
-    return { renderer, scene, camera, sun, setQuality, update, render, bloom };
+    return {
+      renderer,
+      scene,
+      camera,
+      sun,
+      bloom,
+      sky: skyMat,
+      hemi,
+      ambient: ambientLight,
+      rainMat: rain.mat,
+      ground: groundMat,
+      setLightDir,
+      setQuality,
+      update,
+      render
+    };
   }
   function buildRain() {
     const N2 = 520;
@@ -21335,6 +21356,12 @@ void main() {
       this.nextZ = 0;
       this.env = { speed: 12, diff: 0 };
       this.rng = mulberry32(Math.random() * 1e9 | 0);
+    }
+    // 日光系统用：夜幕降临时把楼体窗光调亮（霓虹感来源）
+    setEmissive(v) {
+      if (Math.abs(this.buildingMat.emissiveIntensity - v) > 0.01) {
+        this.buildingMat.emissiveIntensity = v;
+      }
     }
     reset() {
       for (const s of this.segments) this._freeSegment(s);
@@ -22296,6 +22323,216 @@ void main() {
     }
   };
 
+  // src/daylight.js
+  var C = (hex) => new Color(hex);
+  var V = (x, y, z) => new Vector3(x, y, z).normalize();
+  var KEYS = [
+    {
+      d: 0,
+      // 黄昏 · 黄金时刻
+      zenith: C(1450815),
+      horizon: C(15238991),
+      ground: C(2365984),
+      sunCol: C(16767392),
+      sunDir: V(0.24, 0.58, 1),
+      sunGain: 1,
+      fog: C(12614226),
+      fogNear: 45,
+      fogFar: 330,
+      groundPlane: C(855828),
+      lightCol: C(16760970),
+      lightInt: 2.6,
+      hemiSky: C(9681151),
+      hemiGround: C(3813936),
+      hemiInt: 0.68,
+      ambCol: C(4608634),
+      ambInt: 0.4,
+      exposure: 1.12,
+      bloomS: 0.45,
+      bloomR: 0.65,
+      bloomT: 0.82,
+      env: 1,
+      emissive: 0.8,
+      rainA: 0.3
+    },
+    {
+      d: 400,
+      // 落日贴地 · 橙红更浓，影子拉长
+      zenith: C(1842236),
+      horizon: C(15493692),
+      ground: C(2824731),
+      sunCol: C(16757362),
+      sunDir: V(0.22, 0.4, 1),
+      sunGain: 0.8,
+      fog: C(11754556),
+      fogNear: 42,
+      fogFar: 300,
+      groundPlane: C(1576978),
+      lightCol: C(16751971),
+      lightInt: 2.15,
+      hemiSky: C(10130136),
+      hemiGround: C(3943211),
+      hemiInt: 0.6,
+      ambCol: C(4868732),
+      ambInt: 0.38,
+      exposure: 1.07,
+      bloomS: 0.5,
+      bloomR: 0.65,
+      bloomT: 0.8,
+      env: 0.95,
+      emissive: 0.9,
+      rainA: 0.31
+    },
+    {
+      d: 800,
+      // 日落后 · 紫红余晖，城市开始亮灯
+      zenith: C(1514040),
+      horizon: C(12274276),
+      ground: C(2233634),
+      sunCol: C(16748398),
+      sunDir: V(0.2, 0.26, 1),
+      sunGain: 0.45,
+      fog: C(8209240),
+      fogNear: 40,
+      fogFar: 285,
+      groundPlane: C(2364193),
+      lightCol: C(16747634),
+      lightInt: 1.55,
+      hemiSky: C(8749256),
+      hemiGround: C(3155516),
+      hemiInt: 0.52,
+      ambCol: C(4407407),
+      ambInt: 0.35,
+      exposure: 1.01,
+      bloomS: 0.56,
+      bloomR: 0.62,
+      bloomT: 0.78,
+      env: 0.8,
+      emissive: 1,
+      rainA: 0.33
+    },
+    {
+      d: 1200,
+      // 蓝调时刻 · 霓虹亮起
+      zenith: C(462110),
+      horizon: C(3104655),
+      ground: C(66e4),
+      sunCol: C(11127039),
+      sunDir: V(0.18, 0.16, 1),
+      sunGain: 0.16,
+      fog: C(1912650),
+      fogNear: 36,
+      fogFar: 270,
+      groundPlane: C(1451580),
+      lightCol: C(10336490),
+      lightInt: 1.2,
+      hemiSky: C(5993656),
+      hemiGround: C(1449006),
+      hemiInt: 0.58,
+      ambCol: C(3424366),
+      ambInt: 0.34,
+      exposure: 0.96,
+      bloomS: 0.66,
+      bloomR: 0.6,
+      bloomT: 0.72,
+      env: 0.6,
+      emissive: 1.15,
+      rainA: 0.36
+    }
+  ];
+  var smooth = (t) => t * t * (3 - 2 * t);
+  var lerp3 = (a, b, t) => a + (b - a) * t;
+  var Daylight = class {
+    constructor(stage2, city2) {
+      this.stage = stage2;
+      this.city = city2;
+      this.phase = 0;
+      this._d = new Vector3();
+      this._sunDir = new Vector3();
+      this._lightDir = new Vector3();
+      this._c = {
+        zenith: new Color(),
+        horizon: new Color(),
+        ground: new Color(),
+        sunCol: new Color(),
+        fog: new Color(),
+        lightCol: new Color(),
+        hemiSky: new Color(),
+        hemiGround: new Color(),
+        ambCol: new Color(),
+        groundPlane: new Color()
+      };
+      this._n = {};
+      this.update(0);
+    }
+    // dist 为累计里程；超过最后一档就固定在蓝调时刻
+    update(dist2) {
+      const K = KEYS;
+      let i = 0;
+      while (i < K.length - 1 && dist2 >= K[i + 1].d) i++;
+      this.phase = i;
+      const a = K[i];
+      const b = K[Math.min(i + 1, K.length - 1)];
+      const span = b.d - a.d;
+      const t = span > 0 ? smooth(Math.min(1, Math.max(0, (dist2 - a.d) / span))) : 0;
+      for (const k in this._c) this._c[k].copy(a[k]).lerp(b[k], t);
+      this._sunDir.copy(a.sunDir).lerp(b.sunDir, t).normalize();
+      this._lightDir.copy(a.sunDir).lerp(b.sunDir, t);
+      this._lightDir.y = Math.max(this._lightDir.y, 0.24);
+      this._lightDir.normalize();
+      const n = this._n;
+      for (const k of [
+        "sunGain",
+        "fogNear",
+        "fogFar",
+        "lightInt",
+        "hemiInt",
+        "ambInt",
+        "exposure",
+        "bloomS",
+        "bloomR",
+        "bloomT",
+        "env",
+        "emissive",
+        "rainA"
+      ]) {
+        n[k] = lerp3(a[k], b[k], t);
+      }
+      this._apply();
+    }
+    _apply() {
+      const s = this.stage;
+      const c = this._c;
+      const n = this._n;
+      const u = s.sky.uniforms;
+      u.uZenith.value.copy(c.zenith);
+      u.uHorizon.value.copy(c.horizon);
+      u.uGround.value.copy(c.ground);
+      u.uSunColor.value.copy(c.sunCol);
+      u.uSunDir.value.copy(this._sunDir);
+      u.uSunGain.value = n.sunGain;
+      s.setLightDir(this._lightDir.x, this._lightDir.y, this._lightDir.z);
+      s.scene.fog.color.copy(c.fog);
+      s.scene.fog.near = n.fogNear;
+      s.scene.fog.far = n.fogFar;
+      if (s.ground) s.ground.color.copy(c.groundPlane);
+      s.sun.color.copy(c.lightCol);
+      s.sun.intensity = n.lightInt;
+      s.hemi.color.copy(c.hemiSky);
+      s.hemi.groundColor.copy(c.hemiGround);
+      s.hemi.intensity = n.hemiInt;
+      s.ambient.color.copy(c.ambCol);
+      s.ambient.intensity = n.ambInt;
+      s.renderer.toneMappingExposure = n.exposure;
+      s.bloom.strength = n.bloomS;
+      s.bloom.radius = n.bloomR;
+      s.bloom.threshold = n.bloomT;
+      if ("environmentIntensity" in s.scene) s.scene.environmentIntensity = n.env;
+      if (s.rainMat) s.rainMat.uniforms.uAlpha.value = n.rainA;
+      if (this.city && this.city.setEmissive) this.city.setEmissive(n.emissive);
+    }
+  };
+
   // src/main.js
   window.addEventListener("error", (e) => {
     const el = document.getElementById("toast");
@@ -22314,6 +22551,7 @@ void main() {
   var player = new Player(stage, audio, fx);
   var hud = new HUD();
   var input = new Input();
+  var daylight = new Daylight(stage, city);
   var isCoarse = matchMedia("(pointer: coarse)").matches;
   var BEST_KEY = "skyline-rush-best";
   var mode = "title";
@@ -22330,6 +22568,7 @@ void main() {
   var timeScale = 1;
   var ghostZ = 0;
   var glideWas = false;
+  var lastPhase = 0;
   var shakeT = 0;
   var fov2 = 76;
   var quality = 2;
@@ -22350,6 +22589,8 @@ void main() {
     odT = 0;
     odCd = 0;
     glideWas = false;
+    lastPhase = 0;
+    daylight.update(0);
     streak = 0;
     deathDelay = 0;
     timeScale = 1;
@@ -22500,6 +22741,7 @@ void main() {
         stage.camera.fov = 62;
         stage.camera.updateProjectionMatrix();
       }
+      daylight.update(0);
       stage.update(dt, stage.camera.position);
       stage.render();
       return;
@@ -22578,6 +22820,14 @@ void main() {
       }
     }
     city.update(player.pos.z);
+    daylight.update(dist);
+    if (mode === "run" && daylight.phase !== lastPhase) {
+      lastPhase = daylight.phase;
+      hud.toast(
+        ["", "\u843D\u65E5\u66F4\u4F4E\u4E86\u4E00\u70B9", "\u4F59\u6656\u892A\u53BB \xB7 \u57CE\u5E02\u4EAE\u706F", "\u84DD\u8C03\u65F6\u523B \xB7 \u9713\u8679\u4EAE\u8D77"][daylight.phase] || "",
+        1600
+      );
+    }
     city.animateCoins(elapsed);
     fx.update(dt);
     audio.setWind(clamp2((speed - 10) / 26, 0, 1) + (odT > 0 ? 0.15 : 0));
@@ -22616,6 +22866,7 @@ void main() {
     startGame,
     player,
     city,
+    daylight,
     get dist() {
       return dist;
     },
@@ -22629,7 +22880,11 @@ void main() {
       return odCd;
     },
     debug: {
-      giveEnergy: (n) => energy = Math.min(100, energy + n)
+      giveEnergy: (n) => energy = Math.min(100, energy + n),
+      setDist: (v) => {
+        dist = v;
+        daylight.update(v);
+      }
     }
   };
   if (location.search.includes("auto")) {
