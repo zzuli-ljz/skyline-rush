@@ -51,7 +51,7 @@
 **小技巧：**
 - 空中按滑铲会**急速下坠**，可以用来精准落上矮平台；
 - 有土狼时间和跳跃缓冲，边缘起跳很宽容；
-- 过载冲刺期间**无敌 + 滑翔**：自动升到楼顶上方的巡航高度平飞过缺口，空中按空格还能再拔高——坠落边缘按下 Shift 就是你的保命符。
+- 过载冲刺期间**无敌 + 滑翔**：自动升到楼顶上方的巡航高度平飞过缺口，空中按空格还能再拔高；冲刺结束时若仍悬在缺口上方，会进入 2 秒缓降，自动落到下一块楼顶——坠落边缘按下 Shift 就是你的保命符。
 
 ## ⚙️ 渲染（这次往"真实"堆了料）
 
@@ -141,7 +141,7 @@ The rain just stopped. You're on the tallest rooftop in the city, and ahead of y
 
 Touch devices: drag on the left to steer, tap to jump, dedicated slide/dash buttons on the right.
 
-**Tips:** pressing slide mid-air slams you down for precise landings; coyote time + jump buffering make edge jumps forgiving; Overdrive makes you invincible **and lets you glide** — it lifts you to a cruise altitude above the rooftops so gaps can't kill you mid-dash (tap Space to climb higher).
+**Tips:** pressing slide mid-air slams you down for precise landings; coyote time + jump buffering make edge jumps forgiving; Overdrive makes you invincible **and lets you glide** — it lifts you to a cruise altitude above the rooftops so gaps can't kill you mid-dash (tap Space to climb higher). When the dash ends over a gap, a 2-second soft-landing glide takes over and drops you safely onto the next rooftop.
 
 ## ⚙️ Rendering
 
