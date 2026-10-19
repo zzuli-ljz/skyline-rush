@@ -44,7 +44,7 @@
         <div class="key-row"><span class="kbd">SHIFT</span><em>过载冲刺（耗能 50）</em></div>
         <div class="key-row"><span class="kbd">Esc</span><em>暂停</em><span class="kbd">M</span><em>静音</em></div>
       </div>
-      <div class="hint">手机：左侧拖动移动 · 点按跳跃 · 按钮滑铲/冲刺</div>
+      <div class="hint">手机：<b>左右滑动转向</b> · <b>上滑跳跃</b> · <b>下滑滑铲</b> · 右下角冲刺</div>
     </div>
   </div>
 
@@ -76,10 +76,20 @@
 
   <div id="touchArea"></div>
   <div id="touchUI">
-    <div id="btnJump" class="tbtn">跳</div>
-    <div id="btnSlide" class="tbtn">滑</div>
-    <div id="btnDash" class="tbtn dash">冲</div>
+    <div id="gestureHint" class="gesture-hint">
+      <div><b>↔</b>滑动转向</div>
+      <div><b>↑</b>跳跃</div>
+      <div><b>↓</b>滑铲</div>
+    </div>
+    <div id="btnDash" class="tdash">
+      <span class="tdash-ico">⚡</span>
+      <span class="tdash-lbl">冲刺</span>
+    </div>
   </div>
+
+  <button id="fsBtn" class="fs-btn" aria-label="切换全屏" title="全屏（F）">⛶</button>
+
+  <div id="rotateHint"><b>↻</b>横屏游玩体验更佳</div>
 </div>
 <script src="./assets/game.js"></script>
 </body>
