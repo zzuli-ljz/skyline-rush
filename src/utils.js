@@ -116,3 +116,143 @@ export function puddleTexture(rng) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
+
+// ---- 芯片：暗色电路板 + 细亮线路（发光只在线上，整片不发光）----
+function drawChip(g, emissive) {
+  g.clearRect(0, 0, 256, 256);
+  if (emissive) {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, 256, 256);
+  } else {
+    const bg = g.createRadialGradient(112, 104, 12, 128, 128, 132);
+    bg.addColorStop(0, '#222b36');
+    bg.addColorStop(0.72, '#131a23');
+    bg.addColorStop(1, '#080b10');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, 256, 256);
+  }
+  const line = emissive ? '#ffffff' : '#ffd68a';
+  const soft = emissive ? 'rgba(255,255,255,0.5)' : 'rgba(255,214,138,0.45)';
+  // 外圈
+  g.strokeStyle = line;
+  g.lineWidth = 5;
+  g.beginPath(); g.arc(128, 128, 116, 0, 6.2832); g.stroke();
+  // 内细圈
+  g.strokeStyle = soft;
+  g.lineWidth = 2;
+  g.beginPath(); g.arc(128, 128, 101, 0, 6.2832); g.stroke();
+  // 电路走线：四向折线
+  g.strokeStyle = line;
+  g.lineWidth = 5;
+  g.lineCap = 'square';
+  const paths = [
+    [[128, 12], [128, 62], [92, 62]],
+    [[128, 244], [128, 194], [164, 194]],
+    [[12, 128], [62, 128], [62, 160]],
+    [[244, 128], [194, 128], [194, 96]],
+  ];
+  for (const p of paths) {
+    g.beginPath();
+    g.moveTo(p[0][0], p[0][1]);
+    for (let i = 1; i < p.length; i++) g.lineTo(p[i][0], p[i][1]);
+    g.stroke();
+  }
+  // 走线末端的焊点
+  for (const [x, y] of [[92, 62], [164, 194], [62, 160], [194, 96]]) {
+    g.fillStyle = line;
+    g.beginPath(); g.arc(x, y, 5.5, 0, 6.2832); g.fill();
+  }
+  // 中央芯片焊盘
+  if (!emissive) {
+    g.fillStyle = '#0a0f15';
+    g.fillRect(97, 97, 62, 62);
+  }
+  g.strokeStyle = line;
+  g.lineWidth = 4;
+  g.strokeRect(97, 97, 62, 62);
+  g.strokeStyle = soft;
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(112, 128); g.lineTo(144, 128);
+  g.moveTo(128, 112); g.lineTo(128, 144);
+  g.stroke();
+}
+
+export function chipTexture() {
+  const [ca, ga] = canvas2d(256);
+  drawChip(ga, false);
+  const [ce, ge] = canvas2d(256);
+  drawChip(ge, true);
+  const map = new THREE.CanvasTexture(ca);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 4;
+  const emissive = new THREE.CanvasTexture(ce);
+  emissive.colorSpace = THREE.SRGBColorSpace;
+  return { map, emissive };
+}
+
+// ---- 障碍物反光条：金属底 + 顶部一道 3M 式反光带（带内是斜纹警示条）----
+function drawTapeBand(g, y0, h, emissive) {
+  g.save();
+  g.beginPath();
+  g.rect(0, y0, 256, h);
+  g.clip();
+  g.fillStyle = emissive ? '#aebdd8' : '#eef3fa';
+  g.fillRect(0, y0, 256, h);
+  // 45° 斜纹
+  g.lineWidth = 9;
+  g.strokeStyle = emissive ? '#6b4a1c' : '#e0a03c';
+  for (let x = -h; x < 256 + h; x += 30) {
+    g.beginPath();
+    g.moveTo(x, y0 + h + 6);
+    g.lineTo(x + h + 12, y0 - 6);
+    g.stroke();
+  }
+  // 上下压边
+  g.strokeStyle = emissive ? '#4a5568' : 'rgba(30,36,44,0.55)';
+  g.lineWidth = 3;
+  g.beginPath(); g.moveTo(0, y0 + 1.5); g.lineTo(256, y0 + 1.5); g.stroke();
+  g.beginPath(); g.moveTo(0, y0 + h - 1.5); g.lineTo(256, y0 + h - 1.5); g.stroke();
+  g.restore();
+}
+
+function drawHazard(g, emissive) {
+  if (emissive) {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, 256, 256);
+  } else {
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#7f8894');
+    grad.addColorStop(0.55, '#69727e');
+    grad.addColorStop(1, '#4e5763');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+    // 竖向拉丝，避免大面积死板
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * 256;
+      g.fillStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.035})`;
+      g.fillRect(x, 0, 1.6, 256);
+    }
+    // 分缝
+    g.strokeStyle = 'rgba(38,44,52,0.5)';
+    g.lineWidth = 2;
+    for (const y of [96, 176]) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(256, y); g.stroke();
+    }
+  }
+  drawTapeBand(g, 28, 30, emissive); // 顶部反光带
+  drawTapeBand(g, 134, 20, emissive); // 腰部细带
+}
+
+export function hazardTexture() {
+  const [ca, ga] = canvas2d(256);
+  drawHazard(ga, false);
+  const [ce, ge] = canvas2d(256);
+  drawHazard(ge, true);
+  const map = new THREE.CanvasTexture(ca);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 4;
+  const emissive = new THREE.CanvasTexture(ce);
+  emissive.colorSpace = THREE.SRGBColorSpace;
+  return { map, emissive };
+}
