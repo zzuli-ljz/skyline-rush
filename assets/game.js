@@ -20934,8 +20934,8 @@ void main() {
       ? mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.55))
       : mix(uHorizon, uGround, pow(clamp(-h, 0.0, 1.0), 0.7));
     float sd = max(dot(d, uSunDir), 0.0);
-    // \u592A\u9633\u76D8\u9762 + \u4E24\u5C42\u5149\u6655\uFF08uSunGain \u8BA9\u65E5\u843D\u540E\u76D8\u9762\u6DE1\u51FA\uFF0C\u53EA\u5269\u4F59\u6656\uFF09
-    col += uSunColor * (pow(sd, 1600.0) * 5.0 * uSunGain + pow(sd, 80.0) * 0.55 + pow(sd, 6.0) * 0.24);
+    // \u592A\u9633\u76D8\u9762 + \u4E24\u5C42\u5149\u6655\uFF08\u523B\u610F\u538B\u4F4E\uFF1A\u5954\u8DD1\u65F6\u6B63\u5BF9\u5915\u9633\uFF0C\u8FC7\u66DD\u4F1A\u7CCA\u4F4F\u89C6\u7EBF\uFF09
+    col += uSunColor * (pow(sd, 1600.0) * 2.2 * uSunGain + pow(sd, 80.0) * 0.3 + pow(sd, 6.0) * 0.13);
     gl_FragColor = vec4(col, 1.0);
   }
 `
@@ -21012,7 +21012,7 @@ void main() {
     scene.add(rain.obj);
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new Vector2(1, 1), 0.45, 0.65, 0.82);
+    const bloom = new UnrealBloomPass(new Vector2(1, 1), 0.4, 0.6, 0.9);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
     let lastW = -1;
@@ -21111,6 +21111,7 @@ void main() {
       attribute float aTip;
       attribute float aSeed;
       uniform float uTime;
+      uniform float uAlpha;
       varying float vA;
       void main() {
         vec3 p = position;
@@ -21238,6 +21239,147 @@ void main() {
     t.wrapS = t.wrapT = RepeatWrapping;
     return t;
   }
+  function drawChip(g, emissive) {
+    g.clearRect(0, 0, 256, 256);
+    if (emissive) {
+      g.fillStyle = "#000";
+      g.fillRect(0, 0, 256, 256);
+    } else {
+      const bg = g.createRadialGradient(112, 104, 12, 128, 128, 132);
+      bg.addColorStop(0, "#222b36");
+      bg.addColorStop(0.72, "#131a23");
+      bg.addColorStop(1, "#080b10");
+      g.fillStyle = bg;
+      g.fillRect(0, 0, 256, 256);
+    }
+    const line = emissive ? "#ffffff" : "#ffd68a";
+    const soft = emissive ? "rgba(255,255,255,0.5)" : "rgba(255,214,138,0.45)";
+    g.strokeStyle = line;
+    g.lineWidth = 5;
+    g.beginPath();
+    g.arc(128, 128, 116, 0, 6.2832);
+    g.stroke();
+    g.strokeStyle = soft;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(128, 128, 101, 0, 6.2832);
+    g.stroke();
+    g.strokeStyle = line;
+    g.lineWidth = 5;
+    g.lineCap = "square";
+    const paths = [
+      [[128, 12], [128, 62], [92, 62]],
+      [[128, 244], [128, 194], [164, 194]],
+      [[12, 128], [62, 128], [62, 160]],
+      [[244, 128], [194, 128], [194, 96]]
+    ];
+    for (const p of paths) {
+      g.beginPath();
+      g.moveTo(p[0][0], p[0][1]);
+      for (let i = 1; i < p.length; i++) g.lineTo(p[i][0], p[i][1]);
+      g.stroke();
+    }
+    for (const [x, y] of [[92, 62], [164, 194], [62, 160], [194, 96]]) {
+      g.fillStyle = line;
+      g.beginPath();
+      g.arc(x, y, 5.5, 0, 6.2832);
+      g.fill();
+    }
+    if (!emissive) {
+      g.fillStyle = "#0a0f15";
+      g.fillRect(97, 97, 62, 62);
+    }
+    g.strokeStyle = line;
+    g.lineWidth = 4;
+    g.strokeRect(97, 97, 62, 62);
+    g.strokeStyle = soft;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(112, 128);
+    g.lineTo(144, 128);
+    g.moveTo(128, 112);
+    g.lineTo(128, 144);
+    g.stroke();
+  }
+  function chipTexture() {
+    const [ca, ga] = canvas2d(256);
+    drawChip(ga, false);
+    const [ce, ge] = canvas2d(256);
+    drawChip(ge, true);
+    const map = new CanvasTexture(ca);
+    map.colorSpace = SRGBColorSpace;
+    map.anisotropy = 4;
+    const emissive = new CanvasTexture(ce);
+    emissive.colorSpace = SRGBColorSpace;
+    return { map, emissive };
+  }
+  function drawTapeBand(g, y0, h, emissive) {
+    g.save();
+    g.beginPath();
+    g.rect(0, y0, 256, h);
+    g.clip();
+    g.fillStyle = emissive ? "#aebdd8" : "#eef3fa";
+    g.fillRect(0, y0, 256, h);
+    g.lineWidth = 9;
+    g.strokeStyle = emissive ? "#6b4a1c" : "#e0a03c";
+    for (let x = -h; x < 256 + h; x += 30) {
+      g.beginPath();
+      g.moveTo(x, y0 + h + 6);
+      g.lineTo(x + h + 12, y0 - 6);
+      g.stroke();
+    }
+    g.strokeStyle = emissive ? "#4a5568" : "rgba(30,36,44,0.55)";
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(0, y0 + 1.5);
+    g.lineTo(256, y0 + 1.5);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(0, y0 + h - 1.5);
+    g.lineTo(256, y0 + h - 1.5);
+    g.stroke();
+    g.restore();
+  }
+  function drawHazard(g, emissive) {
+    if (emissive) {
+      g.fillStyle = "#000";
+      g.fillRect(0, 0, 256, 256);
+    } else {
+      const grad = g.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, "#7f8894");
+      grad.addColorStop(0.55, "#69727e");
+      grad.addColorStop(1, "#4e5763");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 90; i++) {
+        const x = Math.random() * 256;
+        g.fillStyle = `rgba(255,255,255,${0.02 + Math.random() * 0.035})`;
+        g.fillRect(x, 0, 1.6, 256);
+      }
+      g.strokeStyle = "rgba(38,44,52,0.5)";
+      g.lineWidth = 2;
+      for (const y of [96, 176]) {
+        g.beginPath();
+        g.moveTo(0, y);
+        g.lineTo(256, y);
+        g.stroke();
+      }
+    }
+    drawTapeBand(g, 28, 30, emissive);
+    drawTapeBand(g, 134, 20, emissive);
+  }
+  function hazardTexture() {
+    const [ca, ga] = canvas2d(256);
+    drawHazard(ga, false);
+    const [ce, ge] = canvas2d(256);
+    drawHazard(ge, true);
+    const map = new CanvasTexture(ca);
+    map.colorSpace = SRGBColorSpace;
+    map.anisotropy = 4;
+    const emissive = new CanvasTexture(ce);
+    emissive.colorSpace = SRGBColorSpace;
+    return { map, emissive };
+  }
 
   // src/city.js
   var ZERO = /* @__PURE__ */ new Matrix4().makeScale(0, 0, 0);
@@ -21282,17 +21424,26 @@ void main() {
         metalness: 0.12,
         envMapIntensity: 0.55
       });
+      const tape = hazardTexture();
       this.metalMat = new MeshStandardMaterial({
-        color: 7963020,
-        roughness: 0.42,
-        metalness: 0.75,
-        envMapIntensity: 1.1
+        map: tape.map,
+        emissive: 16777215,
+        emissiveMap: tape.emissive,
+        emissiveIntensity: 0.85,
+        color: 16777215,
+        roughness: 0.5,
+        metalness: 0.45,
+        envMapIntensity: 0.75
       });
       this.beamMat = new MeshStandardMaterial({
-        color: 4344406,
-        roughness: 0.5,
-        metalness: 0.65,
-        envMapIntensity: 1
+        map: tape.map,
+        emissive: 16777215,
+        emissiveMap: tape.emissive,
+        emissiveIntensity: 0.9,
+        color: 14673390,
+        roughness: 0.55,
+        metalness: 0.4,
+        envMapIntensity: 0.7
       });
       this.concreteMat = new MeshStandardMaterial({
         color: 4672856,
@@ -21336,14 +21487,18 @@ void main() {
       this.beamPool = pool(12, () => mk(1, 0.5, 0.7, this.beamMat));
       this.wallPool = pool(14, () => mk(0.9, 2.6, 0.5, this.beamMat));
       this.bulkPool = pool(12, () => mk(1, 1, 1, this.concreteMat));
-      const cgeo = new CylinderGeometry(0.34, 0.34, 0.09, 14);
+      const chip = chipTexture();
+      const cgeo = new CylinderGeometry(0.34, 0.34, 0.09, 20);
       cgeo.rotateX(Math.PI / 2);
       this.coinMat = new MeshStandardMaterial({
-        color: 16762726,
-        emissive: 16755251,
-        emissiveIntensity: 1.7,
-        metalness: 0.9,
-        roughness: 0.22
+        map: chip.map,
+        emissive: 16777215,
+        emissiveMap: chip.emissive,
+        emissiveIntensity: 1.15,
+        color: 16777215,
+        metalness: 0.75,
+        roughness: 0.32,
+        envMapIntensity: 0.9
       });
       this.cMesh = new InstancedMesh(cgeo, this.coinMat, 260);
       this.cMesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -21357,10 +21512,15 @@ void main() {
       this.env = { speed: 12, diff: 0 };
       this.rng = mulberry32(Math.random() * 1e9 | 0);
     }
-    // 日光系统用：夜幕降临时把楼体窗光调亮（霓虹感来源）
+    // 日光系统用：夜幕降临时把楼体窗光调亮（霓虹感来源），
+    // 芯片同步微调——夜里线路更亮一点保证能找到，但永远只有"线"在发光
     setEmissive(v) {
       if (Math.abs(this.buildingMat.emissiveIntensity - v) > 0.01) {
         this.buildingMat.emissiveIntensity = v;
+      }
+      const coinV = v + 0.35;
+      if (Math.abs(this.coinMat.emissiveIntensity - coinV) > 0.01) {
+        this.coinMat.emissiveIntensity = coinV;
       }
     }
     reset() {
@@ -22335,7 +22495,7 @@ void main() {
       ground: C(2365984),
       sunCol: C(16767392),
       sunDir: V(0.24, 0.58, 1),
-      sunGain: 1,
+      sunGain: 0.62,
       fog: C(12614226),
       fogNear: 45,
       fogFar: 330,
@@ -22348,9 +22508,9 @@ void main() {
       ambCol: C(4608634),
       ambInt: 0.4,
       exposure: 1.12,
-      bloomS: 0.45,
-      bloomR: 0.65,
-      bloomT: 0.82,
+      bloomS: 0.4,
+      bloomR: 0.6,
+      bloomT: 0.9,
       env: 1,
       emissive: 0.8,
       rainA: 0.3
@@ -22363,7 +22523,7 @@ void main() {
       ground: C(2824731),
       sunCol: C(16757362),
       sunDir: V(0.22, 0.4, 1),
-      sunGain: 0.8,
+      sunGain: 0.5,
       fog: C(11754556),
       fogNear: 42,
       fogFar: 300,
@@ -22376,9 +22536,9 @@ void main() {
       ambCol: C(4868732),
       ambInt: 0.38,
       exposure: 1.07,
-      bloomS: 0.5,
-      bloomR: 0.65,
-      bloomT: 0.8,
+      bloomS: 0.42,
+      bloomR: 0.6,
+      bloomT: 0.89,
       env: 0.95,
       emissive: 0.9,
       rainA: 0.31
@@ -22391,7 +22551,7 @@ void main() {
       ground: C(2233634),
       sunCol: C(16748398),
       sunDir: V(0.2, 0.26, 1),
-      sunGain: 0.45,
+      sunGain: 0.28,
       fog: C(8209240),
       fogNear: 40,
       fogFar: 285,
@@ -22404,9 +22564,9 @@ void main() {
       ambCol: C(4407407),
       ambInt: 0.35,
       exposure: 1.01,
-      bloomS: 0.56,
-      bloomR: 0.62,
-      bloomT: 0.78,
+      bloomS: 0.46,
+      bloomR: 0.6,
+      bloomT: 0.87,
       env: 0.8,
       emissive: 1,
       rainA: 0.33
@@ -22419,7 +22579,7 @@ void main() {
       ground: C(66e4),
       sunCol: C(11127039),
       sunDir: V(0.18, 0.16, 1),
-      sunGain: 0.16,
+      sunGain: 0.1,
       fog: C(1912650),
       fogNear: 36,
       fogFar: 270,
@@ -22432,9 +22592,9 @@ void main() {
       ambCol: C(3424366),
       ambInt: 0.34,
       exposure: 0.96,
-      bloomS: 0.66,
+      bloomS: 0.52,
       bloomR: 0.6,
-      bloomT: 0.72,
+      bloomT: 0.84,
       env: 0.6,
       emissive: 1.15,
       rainA: 0.36
@@ -22867,6 +23027,7 @@ void main() {
     player,
     city,
     daylight,
+    stage,
     get dist() {
       return dist;
     },
