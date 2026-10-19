@@ -151,6 +151,23 @@ console.log('GLIDE-TEST:', glideState, JSON.parse(glideState).alive && JSON.pars
 await evaluate(`document.getElementById('retryBtn').click()`);
 await sleep(1000);
 
+// 冲刺在缺口上空结束：过载 4 秒耗尽时应靠缓降余量落到下一块楼顶，而不是坠楼
+await evaluate(`window.__game.debug.giveEnergy(100)`);
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{code:'ShiftLeft'}))`);
+await evaluate(`window.dispatchEvent(new KeyboardEvent('keyup',{code:'ShiftLeft'}))`);
+await sleep(200);
+await evaluate(
+  `(()=>{const g=window.__game,p=g.player;p.pos.set(0,11,46);p.prevY=11;p.vy=0;p.grounded=false;p.vx=0;p.lastGroundY=10;return 1})()`
+);
+await sleep(4300); // 冲刺 4s 结束 + 0.3s，检查缓降余量是否接管（此时不应下坠/死亡）
+const odEndState = await evaluate(
+  `(()=>{const g=window.__game,p=g.player;return JSON.stringify({y:+p.pos.y.toFixed(2),alive:p.alive,grounded:p.grounded,
+    glideT:+p.glideT.toFixed(2),odT:+g.odT.toFixed(1),lastGroundY:p.lastGroundY,death:p.deathType,mode:g.mode})})()`
+);
+console.log('OD-END-OVER-GAP:', odEndState, JSON.parse(odEndState).glideT > 0 && JSON.parse(odEndState).alive ? 'OK（缓降接管，没掉下去）' : '❌ 坠楼');
+await evaluate(`document.getElementById('retryBtn').click()`);
+await sleep(1000);
+
 // 坠楼吸附验证：把玩家放到平台下方下坠，不应被吸回楼顶
 const fallRes = await evaluate(
   `(()=>{const g=window.__game,p=g.player;
@@ -182,6 +199,7 @@ const focusOK = focusEl !== 'BUTTON#retryBtn';
 const odOK = JSON.parse(od1).odT > 0 && JSON.parse(od2).odT === 0;
 const fallOK = JSON.parse(fallState).y < 9;
 const glideOK = JSON.parse(glideState).alive && JSON.parse(glideState).y > 9.5;
+const odEndOK = JSON.parse(odEndState).glideT > 0 && JSON.parse(odEndState).alive;
 
 // 坠楼死亡后重开，再进入回正测试
 await evaluate(`document.getElementById('retryBtn').click()`);
@@ -222,10 +240,11 @@ const pass =
   odOK &&
   fallOK &&
   glideOK &&
+  odEndOK &&
   errors.length === 0;
 console.log(
   pass ? 'ALL PASS ✅' : 'FAILED ❌',
-  JSON.stringify({ d2gt: d2 > d1, retry: modeRetry === 'run', distPost: dAfter > dBefore, axisOK, focusOK, odOK, fallOK, glideOK, noErr: errors.length === 0 })
+  JSON.stringify({ d2gt: d2 > d1, retry: modeRetry === 'run', distPost: dAfter > dBefore, axisOK, focusOK, odOK, fallOK, glideOK, odEndOK, noErr: errors.length === 0 })
 );
 
 ws.close();
