@@ -21760,7 +21760,7 @@ void main() {
           }
         }
       }
-      if (groundY !== null && this.pos.y <= groundY + 0.02 && this.vy <= 0) {
+      if (groundY !== null && this.pos.y <= groundY + 0.02 && this.vy <= 0 && this.prevY >= groundY - 0.05) {
         if (!this.grounded) {
           const hard = this.vy < -12;
           this.audio.land(hard);
@@ -22061,7 +22061,7 @@ void main() {
       this._toastT = null;
       this._lastDist = -1;
     }
-    hud(dist2, best2, coins2, energy2, odActive) {
+    hud(dist2, best2, coins2, energy2, odActive, odCd2 = 0) {
       const d = dist2 | 0;
       if (d !== this._lastDist) {
         this.el.dist.textContent = d;
@@ -22070,8 +22070,11 @@ void main() {
       this.el.best.textContent = best2;
       this.el.coins.textContent = coins2;
       this.el.energyFill.style.width = `${Math.min(100, energy2)}%`;
-      this.el.energyFill.classList.toggle("ready", energy2 >= 50 && !odActive);
-      this.el.odHint.classList.toggle("ready", energy2 >= 50 && !odActive);
+      const cooling = odCd2 > 0;
+      this.el.energyFill.classList.toggle("cooling", cooling);
+      this.el.energyFill.classList.toggle("ready", energy2 >= 50 && !odActive && !cooling);
+      this.el.odHint.classList.toggle("ready", energy2 >= 50 && !odActive && !cooling);
+      this.el.odHint.textContent = cooling ? `\u8FC7\u8F7D\u51B7\u5374 ${Math.ceil(odCd2)}s` : "\u8FC7\u8F7D\u5C31\u7EEA \xB7 SHIFT";
     }
     speedFx(on) {
       this.el.speedlines.classList.toggle("on", on);
@@ -22238,6 +22241,7 @@ void main() {
   var coins = 0;
   var energy = 0;
   var odT = 0;
+  var odCd = 0;
   var streak = 0;
   var streakT = 0;
   var deathDelay = 0;
@@ -22261,6 +22265,7 @@ void main() {
     coins = 0;
     energy = 0;
     odT = 0;
+    odCd = 0;
     streak = 0;
     deathDelay = 0;
     timeScale = 1;
@@ -22302,11 +22307,18 @@ void main() {
     hud.showScreen(null);
     hud.touch(isCoarse);
   }
-  document.getElementById("startBtn").addEventListener("click", startGame);
-  document.getElementById("retryBtn").addEventListener("click", startGame);
-  document.getElementById("homeBtn").addEventListener("click", backToTitle);
-  document.getElementById("resumeBtn").addEventListener("click", resume);
-  document.getElementById("quitBtn").addEventListener("click", backToTitle);
+  function bindUI(id, fn) {
+    const el = document.getElementById(id);
+    el.addEventListener("click", () => {
+      el.blur();
+      fn();
+    });
+  }
+  bindUI("startBtn", startGame);
+  bindUI("retryBtn", startGame);
+  bindUI("homeBtn", backToTitle);
+  bindUI("resumeBtn", resume);
+  bindUI("quitBtn", backToTitle);
   input.onEscape = () => {
     if (mode === "run") pause();
     else if (mode === "pause") resume();
@@ -22366,12 +22378,20 @@ void main() {
     const diff = clamp2(dist / 1600, 0, 1);
     speed = baseSpeed * (odT > 0 ? 1.5 : 1);
     city.env = { speed: baseSpeed, diff };
-    if (running && actions.dash && energy >= 50 && odT <= 0) {
-      odT = 4;
-      energy -= 50;
-      audio.overdrive();
-      hud.toast("\u26A1 \u8FC7\u8F7D\u51B2\u523A", 1400);
-      fx.burst(player.pos, 9427199, { count: 26, speed: 6, up: 3, life: 0.6, spread: 0.8 });
+    if (odCd > 0) odCd -= dt;
+    if (running && actions.dash) {
+      if (energy >= 50 && odT <= 0 && odCd <= 0) {
+        odT = 4;
+        odCd = 10;
+        energy -= 50;
+        audio.overdrive();
+        hud.toast("\u26A1 \u8FC7\u8F7D\u51B2\u523A", 1400);
+        fx.burst(player.pos, 9427199, { count: 26, speed: 6, up: 3, life: 0.6, spread: 0.8 });
+      } else if (odCd > 0) {
+        hud.toast(`\u8FC7\u8F7D\u51B7\u5374\u4E2D \xB7 ${Math.ceil(odCd)}s`, 900);
+      } else {
+        hud.toast("\u80FD\u91CF\u4E0D\u8DB3 \xB7 \u6536\u96C6\u82AF\u7247", 900);
+      }
     }
     if (odT > 0) {
       odT -= dt;
@@ -22445,7 +22465,7 @@ void main() {
       city.rebase(D);
     }
     if (running || mode === "run") {
-      hud.hud(dist, best, coins, energy, odT > 0);
+      hud.hud(dist, best, coins, energy, odT > 0, odCd);
     }
     stage.update(dt, stage.camera.position);
     stage.render();
@@ -22465,6 +22485,15 @@ void main() {
     },
     get coins() {
       return coins;
+    },
+    get odT() {
+      return odT;
+    },
+    get odCd() {
+      return odCd;
+    },
+    debug: {
+      giveEnergy: (n) => energy = Math.min(100, energy + n)
     }
   };
   if (location.search.includes("auto")) {

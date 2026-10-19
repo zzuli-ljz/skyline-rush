@@ -41,6 +41,7 @@ body {
 .energy { width: 150px; height: 8px; border-radius: 6px; background: rgba(255,255,255,0.14); overflow: hidden; }
 #energyFill { height: 100%; width: 0%; border-radius: 6px; background: linear-gradient(90deg, #ff9a3c, #ffd9a0); transition: width 0.2s; }
 #energyFill.ready { animation: pulse 0.9s ease-in-out infinite; }
+#energyFill.cooling { background: linear-gradient(90deg, #5a6472, #7d8794); animation: none; filter: grayscale(0.6); }
 @keyframes pulse { 50% { filter: brightness(1.6); } }
 #odHint { font-size: 11px; letter-spacing: 2px; opacity: 0.35; transition: opacity 0.2s; }
 #odHint.ready { opacity: 1; color: #ffd9a0; text-shadow: 0 0 10px rgba(255, 190, 100, 0.8); }

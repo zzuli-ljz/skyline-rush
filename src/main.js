@@ -39,6 +39,7 @@ let dist = 0;
 let coins = 0;
 let energy = 0;
 let odT = 0; // 过载剩余时间
+let odCd = 0; // 过载冷却（含冲刺本身的 4 秒）
 let streak = 0;
 let streakT = 0;
 let deathDelay = 0;
@@ -65,6 +66,7 @@ function startGame() {
   coins = 0;
   energy = 0;
   odT = 0;
+  odCd = 0;
   streak = 0;
   deathDelay = 0;
   timeScale = 1;
@@ -112,11 +114,21 @@ function resume() {
 }
 
 // ---- UI 绑定 ----
-document.getElementById('startBtn').addEventListener('click', startGame);
-document.getElementById('retryBtn').addEventListener('click', startGame);
-document.getElementById('homeBtn').addEventListener('click', backToTitle);
-document.getElementById('resumeBtn').addEventListener('click', resume);
-document.getElementById('quitBtn').addEventListener('click', backToTitle);
+// 统一用 bindUI：点击后立刻移除焦点。否则按钮保持焦点时，
+// 游戏中按空格会在 keyup 时触发按钮 click（空格激活按钮发生在松开时），
+// 表现为"松开跳跃键游戏突然重开回到起点"。
+function bindUI(id, fn) {
+  const el = document.getElementById(id);
+  el.addEventListener('click', () => {
+    el.blur();
+    fn();
+  });
+}
+bindUI('startBtn', startGame);
+bindUI('retryBtn', startGame);
+bindUI('homeBtn', backToTitle);
+bindUI('resumeBtn', resume);
+bindUI('quitBtn', backToTitle);
 input.onEscape = () => {
   if (mode === 'run') pause();
   else if (mode === 'pause') resume();
@@ -189,13 +201,21 @@ function animate() {
   speed = baseSpeed * (odT > 0 ? 1.5 : 1);
   city.env = { speed: baseSpeed, diff };
 
-  // 过载冲刺
-  if (running && actions.dash && energy >= 50 && odT <= 0) {
-    odT = 4;
-    energy -= 50;
-    audio.overdrive();
-    hud.toast('⚡ 过载冲刺', 1400);
-    fx.burst(player.pos, 0x8fd8ff, { count: 26, speed: 6, up: 3, life: 0.6, spread: 0.8 });
+  // 过载冲刺（有冷却：冲刺 4 秒 + 冷却 6 秒，防止连放）
+  if (odCd > 0) odCd -= dt;
+  if (running && actions.dash) {
+    if (energy >= 50 && odT <= 0 && odCd <= 0) {
+      odT = 4;
+      odCd = 10; // 4s 冲刺 + 6s 冷却
+      energy -= 50;
+      audio.overdrive();
+      hud.toast('⚡ 过载冲刺', 1400);
+      fx.burst(player.pos, 0x8fd8ff, { count: 26, speed: 6, up: 3, life: 0.6, spread: 0.8 });
+    } else if (odCd > 0) {
+      hud.toast(`过载冷却中 · ${Math.ceil(odCd)}s`, 900);
+    } else {
+      hud.toast('能量不足 · 收集芯片', 900);
+    }
   }
   if (odT > 0) {
     odT -= dt;
@@ -284,7 +304,7 @@ function animate() {
   }
 
   if (running || mode === 'run') {
-    hud.hud(dist, best, coins, energy, odT > 0);
+    hud.hud(dist, best, coins, energy, odT > 0, odCd);
   }
 
   stage.update(dt, stage.camera.position);
@@ -307,6 +327,15 @@ window.__game = {
   },
   get coins() {
     return coins;
+  },
+  get odT() {
+    return odT;
+  },
+  get odCd() {
+    return odCd;
+  },
+  debug: {
+    giveEnergy: (n) => (energy = Math.min(100, energy + n)),
   },
 };
 

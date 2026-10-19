@@ -26,7 +26,7 @@ export class HUD {
     this._lastDist = -1;
   }
 
-  hud(dist, best, coins, energy, odActive) {
+  hud(dist, best, coins, energy, odActive, odCd = 0) {
     const d = dist | 0;
     if (d !== this._lastDist) {
       this.el.dist.textContent = d;
@@ -35,8 +35,11 @@ export class HUD {
     this.el.best.textContent = best;
     this.el.coins.textContent = coins;
     this.el.energyFill.style.width = `${Math.min(100, energy)}%`;
-    this.el.energyFill.classList.toggle('ready', energy >= 50 && !odActive);
-    this.el.odHint.classList.toggle('ready', energy >= 50 && !odActive);
+    const cooling = odCd > 0;
+    this.el.energyFill.classList.toggle('cooling', cooling);
+    this.el.energyFill.classList.toggle('ready', energy >= 50 && !odActive && !cooling);
+    this.el.odHint.classList.toggle('ready', energy >= 50 && !odActive && !cooling);
+    this.el.odHint.textContent = cooling ? `过载冷却 ${Math.ceil(odCd)}s` : '过载就绪 · SHIFT';
   }
 
   speedFx(on) {

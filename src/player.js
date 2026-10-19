@@ -121,7 +121,9 @@ export class Player {
         }
       }
     }
-    if (groundY !== null && this.pos.y <= groundY + 0.02 && this.vy <= 0) {
+    // 落地必须"这一帧从上方越过平台面"：prevY 在平台之上才允许吸附，
+    // 防止从楼缝里往上穿回楼顶（prevY 容差是快落地时的帧间穿透余量）
+    if (groundY !== null && this.pos.y <= groundY + 0.02 && this.vy <= 0 && this.prevY >= groundY - 0.05) {
       if (!this.grounded) {
         const hard = this.vy < -12;
         this.audio.land(hard);
