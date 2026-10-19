@@ -21661,13 +21661,16 @@ void main() {
 
   // src/player.js
   var G = 24;
-  var JUMP = 8.8;
+  var JUMP = 9.3;
   var LAT_SPEED = 7.5;
   var EYE = 1.62;
   var CROUCH_EYE = 0.95;
   var H_STAND = 1.7;
   var H_SLIDE = 0.95;
   var R = 0.35;
+  var CRASH_R = 0.22;
+  var CRASH_PAD_Z = 0.15;
+  var CRASH_Y_FORGIVE = 0.1;
   var Player = class {
     constructor(stage2, audio2, fx2) {
       this.stage = stage2;
@@ -21719,6 +21722,9 @@ void main() {
           this.vy -= G * dt;
           this.pos.y += this.vy * dt;
           this.pos.z += speed2 * dt * 0.35;
+        } else if (this.deathType === "crash") {
+          this.pos.z -= speed2 * dt * 0.55;
+          this.pos.y += dt * 0.9;
         }
         return;
       }
@@ -21818,7 +21824,14 @@ void main() {
       if (!overdrive && this.glideT <= 0) {
         const top = this.pos.y + this.height;
         for (const o of city2.obstaclesNear(this.pos.z, 1.5)) {
-          if (this.pos.x + R > o.x0 && this.pos.x - R < o.x1 && this.pos.z + 0.3 > o.z0 && this.pos.z - 0.3 < o.z1 && top > o.y0 && this.pos.y < o.y1) {
+          if (this.pos.x + CRASH_R > o.x0 && this.pos.x - CRASH_R < o.x1 && this.pos.z + CRASH_PAD_Z > o.z0 && this.pos.z - CRASH_PAD_Z < o.z1 && top > o.y0 + 0.05 && this.pos.y < o.y1 - CRASH_Y_FORGIVE) {
+            window.__lastCrash = {
+              p: { x: +this.pos.x.toFixed(2), y: +this.pos.y.toFixed(2), z: +this.pos.z.toFixed(2) },
+              top: +top.toFixed(2),
+              h: this.height,
+              o: { kind: o.kind, x0: o.x0, x1: o.x1, y0: o.y0, y1: o.y1, z0: o.z0, z1: o.z1 },
+              dist: window.__game ? Math.round(window.__game.dist) : -1
+            };
             this.die("crash");
             break;
           }
