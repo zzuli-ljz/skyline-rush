@@ -34,8 +34,8 @@ const SKY_FRAG = /* glsl */ `
       ? mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.55))
       : mix(uHorizon, uGround, pow(clamp(-h, 0.0, 1.0), 0.7));
     float sd = max(dot(d, uSunDir), 0.0);
-    // 太阳盘面 + 两层光晕（uSunGain 让日落后盘面淡出，只剩余晖）
-    col += uSunColor * (pow(sd, 1600.0) * 5.0 * uSunGain + pow(sd, 80.0) * 0.55 + pow(sd, 6.0) * 0.24);
+    // 太阳盘面 + 两层光晕（刻意压低：奔跑时正对夕阳，过曝会糊住视线）
+    col += uSunColor * (pow(sd, 1600.0) * 2.2 * uSunGain + pow(sd, 80.0) * 0.3 + pow(sd, 6.0) * 0.13);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -126,7 +126,7 @@ export function createStage(canvas) {
   // ---- 后期 ----
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.65, 0.82);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.4, 0.6, 0.9);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -220,6 +220,7 @@ function buildRain() {
       attribute float aTip;
       attribute float aSeed;
       uniform float uTime;
+      uniform float uAlpha;
       varying float vA;
       void main() {
         vec3 p = position;
