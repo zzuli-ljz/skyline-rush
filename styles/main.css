@@ -86,11 +86,74 @@ h1 { font-size: 58px; font-weight: 900; letter-spacing: 10px; background: linear
 .btn-row { display: flex; gap: 14px; justify-content: center; }
 .pause-panel h2 { letter-spacing: 8px; margin-bottom: 24px; }
 
-/* ---- 触屏 ---- */
-#touchArea { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; display: none; }
-#touchUI { position: absolute; right: 18px; bottom: max(24px, env(safe-area-inset-bottom)); display: none; flex-direction: column; gap: 14px; }
-#touchUI.on { display: flex; }
+/* ---- 层级 ---- */
+#hud { z-index: 10; pointer-events: none; }
+#toast { z-index: 60; }
+.screen { z-index: 20; }
+#touchArea { z-index: 4; }
+#touchUI { z-index: 30; }
+#fsBtn { z-index: 55; }
+
+/* ---- 触屏手势 ---- */
+#touchArea { position: absolute; inset: 0; display: none; touch-action: none; }
 #touchArea.on { display: block; }
-.tbtn { width: 68px; height: 68px; border-radius: 50%; background: rgba(255, 190, 120, 0.16); border: 1.5px solid rgba(255, 190, 120, 0.5); color: #ffe3bd; font-size: 21px; font-weight: 800; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-.tbtn.dash { background: rgba(140, 210, 255, 0.16); border-color: rgba(140, 210, 255, 0.5); color: #bfe7ff; }
-.tbtn:active { transform: scale(0.92); }
+#touchUI { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(22px, env(safe-area-inset-bottom)); display: none; flex-direction: column; align-items: flex-end; gap: 10px; }
+#touchUI.on { display: flex; }
+
+/* 冲刺按钮：玻璃质感方块，能量就绪时发光，冷却时变灰 */
+.tdash {
+  width: 76px; height: 76px; border-radius: 26px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: rgba(24, 16, 11, 0.34);
+  border: 1px solid rgba(255, 190, 120, 0.32);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: rgba(255, 224, 190, 0.75);
+  transition: transform 0.12s, box-shadow 0.25s, border-color 0.25s, color 0.25s, opacity 0.25s;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tdash-ico { font-size: 26px; line-height: 1; filter: grayscale(0.4); }
+.tdash-lbl { font-size: 11px; letter-spacing: 2px; opacity: 0.7; }
+.tdash:active { transform: scale(0.93); }
+.tdash.ready { border-color: rgba(150, 215, 255, 0.85); color: #e2f4ff; box-shadow: 0 0 22px rgba(120, 195, 255, 0.45), inset 0 0 18px rgba(120, 195, 255, 0.14); }
+.tdash.ready .tdash-ico { filter: none; }
+.tdash.cool { opacity: 0.42; }
+
+/* 首次上手的手势提示 */
+.gesture-hint {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  padding: 10px 14px; border-radius: 14px;
+  background: rgba(20, 12, 8, 0.42); border: 1px solid rgba(255, 200, 140, 0.18);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  color: rgba(255, 232, 205, 0.85); font-size: 12.5px; letter-spacing: 1px;
+  opacity: 0; transform: translateY(6px); transition: opacity 0.4s, transform 0.4s;
+  pointer-events: none;
+}
+.gesture-hint.show { opacity: 1; transform: translateY(0); }
+.gesture-hint div { display: flex; align-items: center; gap: 8px; }
+.gesture-hint b { font-size: 15px; color: #ffd9a0; width: 18px; text-align: center; }
+
+/* 全屏按钮 */
+.fs-btn {
+  position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: 38px; height: 30px; border-radius: 10px;
+  background: rgba(20, 12, 8, 0.34); border: 1px solid rgba(255, 200, 140, 0.22);
+  color: rgba(255, 226, 196, 0.72); font-size: 15px; line-height: 1;
+  cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.2s, border-color 0.2s, color 0.2s;
+  opacity: 0.55;
+}
+.fs-btn:hover { opacity: 1; border-color: rgba(255, 200, 140, 0.55); color: #ffe3bd; }
+.fs-btn:active { transform: translateX(-50%) scale(0.94); }
+.fs-btn.hide { opacity: 0; pointer-events: none; }
+
+/* 竖屏提示 */
+#rotateHint {
+  position: absolute; inset: 0; z-index: 70; display: none;
+  align-items: center; justify-content: center; flex-direction: column; gap: 10px;
+  background: rgba(10, 6, 4, 0.82); backdrop-filter: blur(6px);
+  color: #ffd9a0; font-size: 15px; letter-spacing: 3px;
+}
+@media (pointer: coarse) and (orientation: portrait) {
+  #rotateHint.show { display: flex; }
+}
+#rotateHint b { font-size: 34px; }
