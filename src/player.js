@@ -119,7 +119,7 @@ export class Player {
     // 空中按下 = 快速下压（过载滑翔时禁用，避免和升力打架）
     if (!this.grounded && input.slideHeld && !overdrive) this.vy = Math.min(this.vy, -13);
 
-    // 重力 / 过载滑翔
+    // 重力 / 过载滑翔 / 缓降
     if (!this.grounded) {
       if (overdrive) {
         // 滑翔：不累积下坠，升到巡航高度（当前/前方楼顶 + 1.2m）后平飞
@@ -133,7 +133,7 @@ export class Player {
         this.vy = damp(this.vy, this.pos.y < cruise ? climb : 0, 8, dt);
         this.pos.y += this.vy * dt;
         if (cur && this.pos.y < cur.y) this.pos.y = Math.min(cur.y, this.pos.y + 12 * dt);
-      } else if (this.glideT > 0) {
+      } else if (this.glideT > 0 && !input.slideHeld) {
         // 缓降：限制下坠速度，并给一个高度下限（不低于原楼顶 2.5m），
         // 保证即使缺口比滑翔距离更宽，也能撑到下一块楼顶而不是坠楼
         this.vy = Math.max(this.vy - G * 0.3 * dt, -3.6);
@@ -144,6 +144,12 @@ export class Player {
           this.vy = 0;
         }
       } else {
+        // 普通下落；缓降期间按下"下"也会走到这里 = 主动收伞、立刻落地
+        if (this.glideT > 0) {
+          this.glideT = 0;
+          this.vy = Math.min(this.vy, -14);
+          this.audio.slide();
+        }
         this.vy -= G * dt;
         this.pos.y += this.vy * dt;
       }
