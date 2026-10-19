@@ -8,6 +8,7 @@ export class Input {
     this.dashQueued = false;
     this.onEscape = null;
     this.onMute = null;
+    this.onFullscreen = null;
     this._touchAxis = 0;
     this._bind();
   }
@@ -24,6 +25,7 @@ export class Input {
       if (k === 'ShiftLeft' || k === 'ShiftRight') this.dashQueued = true;
       if (k === 'Escape' && this.onEscape) this.onEscape();
       if (k === 'KeyM' && this.onMute) this.onMute();
+      if (k === 'KeyF' && this.onFullscreen) this.onFullscreen();
     });
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
@@ -32,20 +34,30 @@ export class Input {
       this.keys = {};
     });
 
-    // ---- 触屏 ----
-    let dragId = null;
-    let startX = 0;
-    let t0 = 0;
-    const area = document.getElementById('touchArea');
+    // ---- 触屏手势 ----
+    // 全屏滑动层：左右滑动转向（相对起点位移，60px 满舵）
+    //            上滑 = 跳；下滑按住 = 滑铲；轻点 = 跳
+    // 右下角圆形按钮只保留"冲刺"，不再挤三个圆钮
     const isTouch = matchMedia('(pointer: coarse)').matches;
+    this.isTouch = isTouch;
+    const area = document.getElementById('touchArea');
     if (isTouch && area) {
+      const clamp1 = (v) => Math.max(-1, Math.min(1, v));
+      let id = null;
+      let x0 = 0;
+      let y0 = 0;
+      let t0 = 0;
+      let jumped = false;
       area.addEventListener(
         'touchstart',
         (e) => {
+          if (id !== null) return;
           const t = e.changedTouches[0];
-          dragId = t.identifier;
-          startX = t.clientX;
+          id = t.identifier;
+          x0 = t.clientX;
+          y0 = t.clientY;
           t0 = performance.now();
+          jumped = false;
         },
         { passive: true }
       );
@@ -53,40 +65,49 @@ export class Input {
         'touchmove',
         (e) => {
           for (const t of e.changedTouches) {
-            if (t.identifier === dragId) {
-              this._touchAxis = Math.max(-1, Math.min(1, (t.clientX - startX) / 70));
+            if (t.identifier !== id) continue;
+            const dx = t.clientX - x0;
+            const dy = t.clientY - y0;
+            this._touchAxis = clamp1(dx / 60);
+            // 上滑跳跃：一次手势只触发一次
+            if (!jumped && dy < -42 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+              jumped = true;
+              this.jumpQueued = true;
             }
+            // 往下拉并按住 = 持续滑铲
+            this._slideTouch = dy > 34 && Math.abs(dy) > Math.abs(dx) * 0.8;
           }
         },
         { passive: true }
       );
       const end = (e) => {
         for (const t of e.changedTouches) {
-          if (t.identifier === dragId) {
-            // 快速轻点 = 跳跃
-            if (performance.now() - t0 < 220 && Math.abs(t.clientX - startX) < 14) {
-              this.jumpQueued = true;
-            }
-            dragId = null;
-            this._touchAxis = 0;
-          }
+          if (t.identifier !== id) continue;
+          const dt = performance.now() - t0;
+          const dx = t.clientX - x0;
+          const dy = t.clientY - y0;
+          // 原地轻点 = 跳
+          if (!jumped && dt < 220 && Math.hypot(dx, dy) < 18) this.jumpQueued = true;
+          id = null;
+          this._touchAxis = 0;
+          this._slideTouch = false;
         }
       };
       area.addEventListener('touchend', end, { passive: true });
       area.addEventListener('touchcancel', end, { passive: true });
 
-      const bindBtn = (id, down, up) => {
-        const el = document.getElementById(id);
-        el.addEventListener('touchstart', (e) => { e.preventDefault(); down(); }, { passive: false });
-        if (up) el.addEventListener('touchend', up), el.addEventListener('touchcancel', up);
-      };
-      bindBtn('btnJump', () => (this.jumpQueued = true));
-      bindBtn(
-        'btnSlide',
-        () => (this._slideTouch = true),
-        () => (this._slideTouch = false)
-      );
-      bindBtn('btnDash', () => (this.dashQueued = true));
+      const dashBtn = document.getElementById('btnDash');
+      if (dashBtn) {
+        dashBtn.addEventListener(
+          'touchstart',
+          (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.dashQueued = true;
+          },
+          { passive: false }
+        );
+      }
     }
   }
 
