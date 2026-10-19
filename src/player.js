@@ -31,6 +31,8 @@ export class Player {
     this.landKick = 0;
     this.lastGroundY = 10;
     this.prevY = 10;
+    this.glideT = 0; // 过载结束后的缓降余量
+    this._odPrev = false;
     this._v = new THREE.Vector3();
   }
 
@@ -49,6 +51,8 @@ export class Player {
     this.landKick = 0;
     this.lastGroundY = 10;
     this.prevY = 10;
+    this.glideT = 0;
+    this._odPrev = false;
   }
 
   get height() {
@@ -68,6 +72,11 @@ export class Player {
 
     // 前进
     this.pos.z += speed * dt;
+
+    // 过载刚结束且人在空中 → 进入缓降余量：冲刺恰好停在楼缝上空时不会直接坠楼
+    if (this._odPrev && !overdrive && !this.grounded) this.glideT = 2.0;
+    this._odPrev = overdrive;
+    if (this.glideT > 0) this.glideT -= dt;
 
     // 横移（input.axis 为屏幕方向：+1 右、-1 左；玩家朝 +z 跑，屏幕右侧是世界 -x）
     this.vx = damp(this.vx, -input.axis * LAT_SPEED, 11, dt);
@@ -116,6 +125,16 @@ export class Player {
         this.vy = damp(this.vy, this.pos.y < cruise ? climb : 0, 8, dt);
         this.pos.y += this.vy * dt;
         if (cur && this.pos.y < cur.y) this.pos.y = Math.min(cur.y, this.pos.y + 12 * dt);
+      } else if (this.glideT > 0) {
+        // 缓降：限制下坠速度，并给一个高度下限（不低于原楼顶 2.5m），
+        // 保证即使缺口比滑翔距离更宽，也能撑到下一块楼顶而不是坠楼
+        this.vy = Math.max(this.vy - G * 0.3 * dt, -3.6);
+        this.pos.y += this.vy * dt;
+        const floor = this.lastGroundY - 2.5;
+        if (this.pos.y < floor) {
+          this.pos.y = floor;
+          this.vy = 0;
+        }
       } else {
         this.vy -= G * dt;
         this.pos.y += this.vy * dt;
@@ -153,6 +172,7 @@ export class Player {
       this.grounded = true;
       this.lastGroundY = groundY;
       this.coyote = 0.11;
+      this.glideT = 0; // 落地即结束缓降，避免影响后续跳跃
     } else if (this.grounded && (groundY === null || this.pos.y > groundY + 0.05)) {
       // 走出边缘
       this.grounded = false;
@@ -161,8 +181,8 @@ export class Player {
     }
     this.prevY = this.pos.y;
 
-    // ---- 障碍碰撞 ----
-    if (!overdrive) {
+    // ---- 障碍碰撞（过载与缓降余量期间视为飞行，不会撞死）----
+    if (!overdrive && this.glideT <= 0) {
       const top = this.pos.y + this.height;
       for (const o of city.obstaclesNear(this.pos.z, 1.5)) {
         if (
@@ -176,8 +196,10 @@ export class Player {
       }
     }
 
-    // ---- 坠楼（过载滑翔期间不会坠楼）----
-    if (!seg && this.alive && !overdrive && this.pos.y < this.lastGroundY - 9) this.die('fall');
+    // ---- 坠楼（过载滑翔 / 结束后的缓降期间不会坠楼）----
+    if (!seg && this.alive && !overdrive && this.glideT <= 0 && this.pos.y < this.lastGroundY - 9) {
+      this.die('fall');
+    }
 
     // ---- 脚步声与镜头晃动 ----
     if (this.grounded && !this.sliding) {
