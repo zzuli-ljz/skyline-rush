@@ -58,6 +58,7 @@
 - **PBR 材质 + IBL 环境光照**：用程序化黄昏天空生成 PMREM 环境贴图，雨后天台的积水会真实反射天空的颜色；
 - **实时软阴影**：PCFSoft 阴影贴图跟随玩家移动，障碍物在夕阳下拉出长影；
 - **程序化天空**：自定义 shader 绘制天顶→地平线的色带、太阳盘面与两层光晕；
+- **日光推进**：每跑 400 米，太阳压低一档、雾色转深——黄昏 → 落日贴地 → 紫红余晖 → 1200 米后的蓝调霓虹，窗光渐亮、辉光渐强，全程只改视觉不碰物理；
 - **GPU 雨丝**：520 条雨全部在顶点着色器里下落（零 CPU 开销），随镜头移动循环；
 - **后期管线**：UnrealBloom 辉光 + ACES Filmic 色调映射 + 暗角/颗粒/过载速度线；
 - **指数雾**：远景楼群沉进暮色里，只留亮着的窗。
@@ -148,6 +149,7 @@ Touch devices: slide left/right to steer, swipe up (or tap) to jump, drag down a
 - **PBR + IBL**: a PMREM environment map generated from the procedural dusk sky, so wet rooftops genuinely reflect the horizon;
 - **PCFSoft real-time shadows** that follow the player, with long sunset shadows from obstacles;
 - A custom sky shader (zenith-to-horizon gradient, sun disc, dual glow);
+- **Daylight progression**: every 400 m the sun drops another notch and the palette deepens — golden hour → sun-on-the-horizon → magenta afterglow → blue-hour neon past 1200 m, with windows brightening and bloom swelling. Pure visuals, physics untouched;
 - **520 GPU rain streaks** falling entirely in the vertex shader;
 - UnrealBloom + ACES Filmic tone mapping + vignette/grain/overdrive speed-lines;
 - Exponential fog that sinks the far skyline into dusk.
