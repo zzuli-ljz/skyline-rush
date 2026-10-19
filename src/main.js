@@ -45,6 +45,7 @@ let streakT = 0;
 let deathDelay = 0;
 let timeScale = 1;
 let ghostZ = 0;
+let glideWas = false;
 let shakeT = 0;
 let fov = 76;
 let quality = 2;
@@ -67,6 +68,7 @@ function startGame() {
   energy = 0;
   odT = 0;
   odCd = 0;
+  glideWas = false;
   streak = 0;
   deathDelay = 0;
   timeScale = 1;
@@ -282,6 +284,10 @@ function animate() {
   if (running) {
     dist += speed * dt;
     player.update(dt, input, city, speed, actions, odT > 0);
+    // 缓降开始提示：告诉玩家可以自己决定何时落地
+    const gliding = player.glideT > 0;
+    if (gliding && !glideWas) hud.toast(isCoarse ? '下拉可立即落地' : 'S / ↓ 可立即落地', 1200);
+    glideWas = gliding;
   } else if (mode === 'run') {
     // 死亡演出
     player.update(dt, input, city, speed, actions, false);
