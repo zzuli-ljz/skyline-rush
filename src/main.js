@@ -73,8 +73,20 @@ function startGame() {
   mode = 'run';
   hud.showScreen(null);
   hud.touch(isCoarse);
+  // 手机端：借用户手势顺手进全屏（浏览器要求全屏必须由手势触发）
+  if (isCoarse && !fsEl()) toggleFullscreen();
+  syncRotate();
   audio.ui();
 }
+
+// 竖屏提示：手机竖着玩视野太窄，提示旋转
+function syncRotate() {
+  const hint = document.getElementById('rotateHint');
+  if (!hint) return;
+  const portrait = window.innerHeight > window.innerWidth;
+  hint.classList.toggle('show', isCoarse && portrait && mode === 'run');
+}
+window.addEventListener('resize', syncRotate);
 
 function gameOver() {
   mode = 'over';
@@ -89,6 +101,7 @@ function gameOver() {
   hud.showScreen('over');
   hud.touch(false);
   hud.speedFx(false);
+  syncRotate();
 }
 
 function backToTitle() {
@@ -97,6 +110,8 @@ function backToTitle() {
   city.reset();
   hud.showScreen('title');
   hud.speedFx(false);
+  hud.touch(false);
+  syncRotate();
 }
 
 function pause() {
@@ -104,6 +119,7 @@ function pause() {
   mode = 'pause';
   hud.showScreen('pause');
   hud.touch(false);
+  syncRotate();
 }
 
 function resume() {
@@ -111,6 +127,7 @@ function resume() {
   mode = 'run';
   hud.showScreen(null);
   hud.touch(isCoarse);
+  syncRotate();
 }
 
 // ---- UI 绑定 ----
@@ -138,6 +155,46 @@ input.onMute = () => {
   audio.setMuted(!audio.muted);
   hud.toast(audio.muted ? '🔇 已静音' : '🔊 已开启声音', 1200);
 };
+
+// ---- 全屏 ----
+const fsBtn = document.getElementById('fsBtn');
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+
+async function toggleFullscreen() {
+  try {
+    if (!fsEl()) {
+      const el = document.documentElement;
+      if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      // 触屏设备尝试锁定横屏（部分浏览器不支持，失败无妨）
+      if (isCoarse && screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } else if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  } catch (e) {
+    hud.toast('当前浏览器不支持全屏', 1400);
+  }
+}
+
+function syncFsBtn() {
+  if (!fsBtn) return;
+  fsBtn.textContent = fsEl() ? '⛶' : '⛶';
+  fsBtn.classList.toggle('on', !!fsEl());
+  fsBtn.title = fsEl() ? '退出全屏（F）' : '全屏（F）';
+}
+
+fsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  fsBtn.blur();
+  toggleFullscreen();
+});
+document.addEventListener('fullscreenchange', syncFsBtn);
+document.addEventListener('webkitfullscreenchange', syncFsBtn);
+input.onFullscreen = toggleFullscreen;
 
 // ---- 主循环 ----
 const clock = new THREE.Clock();
