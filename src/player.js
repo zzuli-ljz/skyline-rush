@@ -3,13 +3,17 @@ import * as THREE from 'three';
 import { clamp, damp } from './utils.js';
 
 const G = 24;
-const JUMP = 8.8;
+const JUMP = 9.3; // 跳跃 apex ≈1.8m，保证跳过空调机组（1.35m 高）有足够余量
 const LAT_SPEED = 7.5;
 const EYE = 1.62;
 const CROUCH_EYE = 0.95;
 const H_STAND = 1.7;
 const H_SLIDE = 0.95;
 const R = 0.35;
+// 撞击判定的宽容度：余量过大会把"擦角/擦顶"也判成撞击，体感像隐形墙
+const CRASH_R = 0.22; // 侧向身位半径（比身体 R 小，贴边路过不算撞）
+const CRASH_PAD_Z = 0.15; // 纵向判定余量
+const CRASH_Y_FORGIVE = 0.1; // 跃过障碍顶端时的宽容高度
 
 export class Player {
   constructor(stage, audio, fx) {
@@ -61,11 +65,15 @@ export class Player {
 
   update(dt, input, city, speed, actions, overdrive) {
     if (!this.alive) {
-      // 死亡后相机继续表现：坠楼下坠 / 撞击后倒退
+      // 死亡后相机继续表现：坠楼下坠 / 撞击后倒退拉远（否则障碍物贴着近裁剪面，
+      // 结算画面里根本看不到自己撞到了什么，像被隐形墙害死）
       if (this.deathType === 'fall') {
         this.vy -= G * dt;
         this.pos.y += this.vy * dt;
         this.pos.z += speed * dt * 0.35;
+      } else if (this.deathType === 'crash') {
+        this.pos.z -= speed * dt * 0.55;
+        this.pos.y += dt * 0.9;
       }
       return;
     }
@@ -186,10 +194,17 @@ export class Player {
       const top = this.pos.y + this.height;
       for (const o of city.obstaclesNear(this.pos.z, 1.5)) {
         if (
-          this.pos.x + R > o.x0 && this.pos.x - R < o.x1 &&
-          this.pos.z + 0.3 > o.z0 && this.pos.z - 0.3 < o.z1 &&
-          top > o.y0 && this.pos.y < o.y1
+          this.pos.x + CRASH_R > o.x0 && this.pos.x - CRASH_R < o.x1 &&
+          this.pos.z + CRASH_PAD_Z > o.z0 && this.pos.z - CRASH_PAD_Z < o.z1 &&
+          top > o.y0 + 0.05 && this.pos.y < o.y1 - CRASH_Y_FORGIVE
         ) {
+          // 幽灵碰撞排查：记录命中现场
+          window.__lastCrash = {
+            p: { x: +this.pos.x.toFixed(2), y: +this.pos.y.toFixed(2), z: +this.pos.z.toFixed(2) },
+            top: +top.toFixed(2), h: this.height,
+            o: { kind: o.kind, x0: o.x0, x1: o.x1, y0: o.y0, y1: o.y1, z0: o.z0, z1: o.z1 },
+            dist: window.__game ? Math.round(window.__game.dist) : -1,
+          };
           this.die('crash');
           break;
         }
