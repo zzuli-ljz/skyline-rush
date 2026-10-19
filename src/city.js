@@ -1,6 +1,6 @@
 // 程序化城市：天台平台流式生成 + 障碍 + 芯片 + 楼群（实例化渲染）
 import * as THREE from 'three';
-import { mulberry32, facadeTexture, roofTexture, puddleTexture, clamp } from './utils.js';
+import { mulberry32, facadeTexture, roofTexture, puddleTexture, chipTexture, hazardTexture, clamp } from './utils.js';
 
 const ZERO = /* @__PURE__ */ new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -48,17 +48,26 @@ export class City {
       metalness: 0.12,
       envMapIntensity: 0.55,
     });
+    const tape = hazardTexture();
     this.metalMat = new THREE.MeshStandardMaterial({
-      color: 0x79818c,
-      roughness: 0.42,
-      metalness: 0.75,
-      envMapIntensity: 1.1,
+      map: tape.map,
+      emissive: 0xffffff,
+      emissiveMap: tape.emissive,
+      emissiveIntensity: 0.85,
+      color: 0xffffff,
+      roughness: 0.5,
+      metalness: 0.45,
+      envMapIntensity: 0.75,
     });
     this.beamMat = new THREE.MeshStandardMaterial({
-      color: 0x424a56,
-      roughness: 0.5,
-      metalness: 0.65,
-      envMapIntensity: 1.0,
+      map: tape.map,
+      emissive: 0xffffff,
+      emissiveMap: tape.emissive,
+      emissiveIntensity: 0.9,
+      color: 0xdfe5ee,
+      roughness: 0.55,
+      metalness: 0.4,
+      envMapIntensity: 0.7,
     });
     this.concreteMat = new THREE.MeshStandardMaterial({
       color: 0x474d58,
@@ -110,15 +119,19 @@ export class City {
     this.wallPool = pool(14, () => mk(0.9, 2.6, 0.5, this.beamMat));
     this.bulkPool = pool(12, () => mk(1, 1, 1, this.concreteMat));
 
-    // 芯片（金币）实例
-    const cgeo = new THREE.CylinderGeometry(0.34, 0.34, 0.09, 14);
+    // 芯片（金币）实例：暗色电路板，只有线路发光
+    const chip = chipTexture();
+    const cgeo = new THREE.CylinderGeometry(0.34, 0.34, 0.09, 20);
     cgeo.rotateX(Math.PI / 2);
     this.coinMat = new THREE.MeshStandardMaterial({
-      color: 0xffc766,
-      emissive: 0xffaa33,
-      emissiveIntensity: 1.7,
-      metalness: 0.9,
-      roughness: 0.22,
+      map: chip.map,
+      emissive: 0xffffff,
+      emissiveMap: chip.emissive,
+      emissiveIntensity: 1.15,
+      color: 0xffffff,
+      metalness: 0.75,
+      roughness: 0.32,
+      envMapIntensity: 0.9,
     });
     this.cMesh = new THREE.InstancedMesh(cgeo, this.coinMat, 260);
     this.cMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -134,10 +147,15 @@ export class City {
     this.rng = mulberry32((Math.random() * 1e9) | 0);
   }
 
-  // 日光系统用：夜幕降临时把楼体窗光调亮（霓虹感来源）
+  // 日光系统用：夜幕降临时把楼体窗光调亮（霓虹感来源），
+  // 芯片同步微调——夜里线路更亮一点保证能找到，但永远只有"线"在发光
   setEmissive(v) {
     if (Math.abs(this.buildingMat.emissiveIntensity - v) > 0.01) {
       this.buildingMat.emissiveIntensity = v;
+    }
+    const coinV = v + 0.35;
+    if (Math.abs(this.coinMat.emissiveIntensity - coinV) > 0.01) {
+      this.coinMat.emissiveIntensity = coinV;
     }
   }
 
