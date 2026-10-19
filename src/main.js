@@ -401,6 +401,7 @@ window.__game = {
   player,
   city,
   daylight,
+  stage,
   get dist() {
     return dist;
   },
