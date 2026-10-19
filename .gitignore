@@ -1,3 +1,6 @@
 node_modules/
 .shots/
+.shot-*.png
 .tmp-profile/
+.tmp-profile2/
+.tmp-profile3/
