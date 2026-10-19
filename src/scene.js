@@ -7,6 +7,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // 落日方向：前方偏左、低角度——全程朝着夕阳跑（玩家沿 +z 前进）
 export const SUN_DIR = new THREE.Vector3(0.24, 0.58, 1).normalize();
+// 灯光方向与"画面上看到的太阳"分开：太阳可以一直往下沉，
+// 但投影光保持一个最低仰角，否则影子会拉得极长并出现条纹
+const LIGHT_MIN_Y = 0.24;
 
 const SKY_VERT = /* glsl */ `
   varying vec3 vDir;
@@ -23,6 +26,7 @@ const SKY_FRAG = /* glsl */ `
   uniform vec3 uGround;
   uniform vec3 uSunColor;
   uniform vec3 uSunDir;
+  uniform float uSunGain;
   void main() {
     vec3 d = normalize(vDir);
     float h = d.y;
@@ -30,8 +34,8 @@ const SKY_FRAG = /* glsl */ `
       ? mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.55))
       : mix(uHorizon, uGround, pow(clamp(-h, 0.0, 1.0), 0.7));
     float sd = max(dot(d, uSunDir), 0.0);
-    // 太阳盘面 + 两层光晕
-    col += uSunColor * (pow(sd, 1600.0) * 5.0 + pow(sd, 80.0) * 0.55 + pow(sd, 6.0) * 0.24);
+    // 太阳盘面 + 两层光晕（uSunGain 让日落后盘面淡出，只剩余晖）
+    col += uSunColor * (pow(sd, 1600.0) * 5.0 * uSunGain + pow(sd, 80.0) * 0.55 + pow(sd, 6.0) * 0.24);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -71,6 +75,7 @@ export function createStage(canvas) {
       uGround: { value: new THREE.Color(0x241a20) },
       uSunColor: { value: new THREE.Color(0xffd9a0) },
       uSunDir: { value: SUN_DIR.clone() },
+      uSunGain: { value: 1 },
     },
   });
   const sky = new THREE.Mesh(skyGeo, skyMat);
@@ -89,7 +94,8 @@ export function createStage(canvas) {
   // ---- 光照 ----
   const hemi = new THREE.HemisphereLight(0x93b8ff, 0x3a3230, 0.68);
   scene.add(hemi);
-  scene.add(new THREE.AmbientLight(0x46527a, 0.4));
+  const ambientLight = new THREE.AmbientLight(0x46527a, 0.4);
+  scene.add(ambientLight);
 
   const sun = new THREE.DirectionalLight(0xffc08a, 2.6);
   sun.castShadow = true;
@@ -107,10 +113,8 @@ export function createStage(canvas) {
   scene.add(sun.target);
 
   // ---- 远景地面（被雾吞掉，只留轮廓） ----
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(4000, 4000),
-    new THREE.MeshStandardMaterial({ color: 0x0d0f14, roughness: 1 })
-  );
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x0d0f14, roughness: 1 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.05;
   scene.add(ground);
@@ -159,13 +163,17 @@ export function createStage(canvas) {
   }
 
   let rainT = 0;
+  const lightDir = SUN_DIR.clone();
+  function setLightDir(x, y, z) {
+    lightDir.set(x, Math.max(y, LIGHT_MIN_Y), z).normalize();
+  }
   function update(dt, focus) {
     rainT += dt;
     rain.mat.uniforms.uTime.value = rainT;
     sky.position.copy(camera.position);
     rain.obj.position.set(camera.position.x, 0, camera.position.z);
     // 阴影相机跟随玩家，保证近处阴影清晰
-    sun.position.copy(focus).addScaledVector(SUN_DIR, 160);
+    sun.position.copy(focus).addScaledVector(lightDir, 160);
     sun.target.position.copy(focus);
     sun.target.updateMatrixWorld();
   }
@@ -174,7 +182,11 @@ export function createStage(canvas) {
     composer.render();
   }
 
-  return { renderer, scene, camera, sun, setQuality, update, render, bloom };
+  return {
+    renderer, scene, camera, sun, bloom,
+    sky: skyMat, hemi, ambient: ambientLight, rainMat: rain.mat, ground: groundMat,
+    setLightDir, setQuality, update, render,
+  };
 }
 
 function buildRain() {
