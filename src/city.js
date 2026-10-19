@@ -134,6 +134,13 @@ export class City {
     this.rng = mulberry32((Math.random() * 1e9) | 0);
   }
 
+  // 日光系统用：夜幕降临时把楼体窗光调亮（霓虹感来源）
+  setEmissive(v) {
+    if (Math.abs(this.buildingMat.emissiveIntensity - v) > 0.01) {
+      this.buildingMat.emissiveIntensity = v;
+    }
+  }
+
   reset() {
     for (const s of this.segments) this._freeSegment(s);
     this.segments = [];
