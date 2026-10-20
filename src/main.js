@@ -9,6 +9,8 @@ import { HUD } from './hud.js';
 import { Input } from './input.js';
 import { Daylight } from './daylight.js';
 import { Race, RACE_LEN } from './race.js';
+import { Powerups, SKILLS } from './powerups.js';
+import { Net } from './net.js';
 import { clamp, damp } from './utils.js';
 
 // 运行时错误可视化（调试用）
@@ -32,6 +34,7 @@ const hud = new HUD();
 const input = new Input();
 const daylight = new Daylight(stage, city);
 const race = new Race(stage, city);
+const powerups = new Powerups(stage, city);
 
 const isCoarse = matchMedia('(pointer: coarse)').matches;
 const BEST_KEY = 'skyline-rush-best';
@@ -64,6 +67,13 @@ let fpsTime = 0;
 let fpsFrames = 0;
 let best = +(localStorage.getItem(BEST_KEY) || 0);
 
+// ---- 技能 & 联机 ----
+let atkSkill = null; // 待释放的攻击技能 key
+let net = null;
+let netRace = false; // 本局是否联机赛
+let netSendT = 0;
+let seedCur = 0;
+
 city.env = { speed: 10, diff: 0 };
 city.reset();
 
@@ -74,6 +84,13 @@ function startGame() {
   player.reset(0);
   player.raceMode = false;
   race.setVisible(false);
+  powerups.setVisible(false);
+  powerups.reset(city.seed || 0);
+  atkSkill = null;
+  netRace = false;
+  hud.skill(null);
+  hud.buffs([]);
+  hud.blackout(0);
   baseSpeed = 12;
   speed = 12;
   dist = 0;
@@ -106,15 +123,29 @@ function fmtTime(t) {
   return `${m}:${s.toFixed(2).padStart(5, '0')}`;
 }
 
-// 竞速赛：固定赛道 + 3 人（本地 1 人 + 2 个幽灵），撞/掉只扣速度
-function startRace(seed) {
+// 竞速赛：固定赛道 + 3 人，撞/掉只扣速度
+// opts.net = true 时不生成 AI 幽灵，对手全部来自联机房间
+function startRace(seed, opts = {}) {
   audio.init();
   const s = seed === undefined ? (Math.random() * 1e9) | 0 : seed | 0;
+  seedCur = s;
   city.reset(s);
   player.reset(0);
   player.raceMode = true;
-  race.reset(s, { ai: 2, len: RACE_LEN });
+  race.reset(s, { ai: opts.net ? 0 : 2, len: RACE_LEN });
+  if (opts.net && net) {
+    const others = net.players.filter((p) => p.id !== net.id);
+    others.forEach((p, i) => race.addHuman(p.id, p.name, [0xffb066, 0xb98cff][i % 2], -4 - i * 4));
+  }
   race.setVisible(true);
+  powerups.reset(s);
+  powerups.setVisible(true);
+  atkSkill = null;
+  hud.skill(null);
+  hud.buffs([]);
+  hud.blackout(0);
+  netSendT = 0;
+  player.onShieldBreak = (how) => hud.toast(how === 'fall' ? '🛡 护盾抵消了坠落' : '🛡 护盾挡住了撞击', 1500);
   baseSpeed = 12;
   speed = 12;
   dist = 0;
@@ -131,7 +162,7 @@ function startRace(seed) {
   mode = 'race';
   lastPlay = 'race';
   raceState = 'countdown';
-  cdT = 3.4;
+  cdT = opts.cd || 3.4;
   lastCd = '';
   hud.showScreen(null);
   hud.race(true);
@@ -179,6 +210,9 @@ function finishRace() {
   hud.setRaceResult(place, race.opponents.length + 1, fmtTime(t), coins, isBest);
   hud.showScreen('over');
   hud.race(false);
+  hud.skill(null);
+  hud.buffs([]);
+  hud.blackout(0);
   hud.touch(false);
   hud.speedFx(false);
   hud.countdown(null);
@@ -192,6 +226,16 @@ function backToTitle() {
   ghostZ = 0;
   player.raceMode = false;
   race.setVisible(false);
+  powerups.setVisible(false);
+  atkSkill = null;
+  netRace = false;
+  if (net) {
+    net.leave();
+    net = null;
+  }
+  hud.skill(null);
+  hud.buffs([]);
+  hud.blackout(0);
   hud.race(false);
   hud.countdown(null);
   hud.hit(0);
@@ -219,6 +263,223 @@ function resume() {
   syncRotate();
 }
 
+// ---- 技能 ----
+function buffList() {
+  const out = [];
+  if (player.buffUpT > 0) out.push({ icon: '🌬', name: '疾风', t: player.buffUpT, color: '#7de3ff' });
+  if (player.buffDownT > 0) out.push({ icon: '🌪', name: '逆风', t: player.buffDownT, color: '#ff9a5c' });
+  if (player.shieldT > 0) out.push({ icon: '🛡', name: '护盾', t: player.shieldT, color: '#8affc1' });
+  if (player.magnetT > 0) out.push({ icon: '🧲', name: '磁力', t: player.magnetT, color: '#ffd27d' });
+  if (player.noJumpT > 0) out.push({ icon: '⛓', name: '锁跳', t: player.noJumpT, color: '#ff8a8a' });
+  if (player.noFuelT > 0) out.push({ icon: '🔌', name: '断电', t: player.noFuelT, color: '#c9a6ff' });
+  return out;
+}
+
+function pickupSkill(box) {
+  const s = SKILLS[box.skill];
+  fx.burst(new THREE.Vector3(box.x, box.y, box.z), s.color, { count: 18, speed: 3.5, up: 1.8, life: 0.6, spread: 0.5 });
+  audio.coin(2);
+  if (s.self) {
+    if (box.skill === 'gale') {
+      player.buffUp = 1.22;
+      player.buffUpT = s.dur;
+    } else if (box.skill === 'shield') {
+      player.shieldT = s.dur;
+    } else if (box.skill === 'magnet') {
+      player.magnetT = s.dur;
+    }
+    hud.toast(`${s.icon} ${s.name} · ${s.desc}`, 1700);
+  } else {
+    atkSkill = box.skill;
+    hud.skill({ icon: s.icon, name: s.name });
+    hud.toast(`${s.icon} 拿到 ${s.name} · 按 1/2/3 选目标`, 1900);
+  }
+}
+
+// 按名次选目标：1/2/3 对应右上角名次表里的第 N 名
+function castAttack(place) {
+  if (mode !== 'race' || !atkSkill || !player.alive) return;
+  const row = race.rows(player.pos.z).find((r) => r.place === place);
+  if (!row || row.me) {
+    hud.toast('要选对手的名次', 1000);
+    return;
+  }
+  const o = race.opponents.find((x) => x.id === row.id) || race.opponents.find((x) => x.name === row.name);
+  if (!o) return;
+  const s = SKILLS[atkSkill];
+  race.applySkill(o, atkSkill);
+  if (net && netRace && net.ready && o.remote) net.sendSkill(o.id, atkSkill);
+  hud.toast(`${s.icon} ${s.name} → ${o.name}`, 1500);
+  audio.ui();
+  atkSkill = null;
+  hud.skill(null);
+}
+
+// 被别人命中（联机时由网络事件触发；本地 AI 不会打技能）
+function hitBy(kind, fromName) {
+  const s = SKILLS[kind];
+  if (!s) return;
+  if (kind === 'headwind') {
+    player.buffDown = 0.72;
+    player.buffDownT = s.dur;
+  } else if (kind === 'blackout') {
+    energy = 0;
+    player.noFuelT = s.dur;
+    player.buffDown = 0.9;
+    player.buffDownT = 3;
+  } else if (kind === 'lockjump') {
+    player.noJumpT = s.dur;
+  }
+  hud.toast(`被 ${fromName || '对手'} 的 ${s.icon}${s.name} 命中`, 1700);
+  hud.hit(0.9);
+  audio.crash();
+}
+
+// ---- 联机大厅 ----
+const lobbyEl = {
+  screen: document.getElementById('lobby'),
+  setup: document.getElementById('lobbySetup'),
+  room: document.getElementById('lobbyRoom'),
+  code: document.getElementById('roomCode'),
+  list: document.getElementById('lobbyList'),
+  status: document.getElementById('lobbyStatus'),
+  name: document.getElementById('nameInput'),
+  codeIn: document.getElementById('codeInput'),
+  start: document.getElementById('roomStartBtn'),
+};
+
+function lobbyStatus(msg) {
+  if (lobbyEl.status) lobbyEl.status.textContent = msg || '';
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function openLobby() {
+  lobbyEl.screen.classList.add('visible');
+  if (!lobbyEl.name.value) lobbyEl.name.value = localStorage.getItem('sr-name') || '';
+  lobbyStatus('');
+  if (!net) {
+    lobbyEl.setup.classList.remove('off');
+    lobbyEl.room.classList.remove('on');
+  }
+}
+
+function renderLobby() {
+  if (!net) return;
+  const colors = ['#6fd6ff', '#ffb066', '#b98cff'];
+  lobbyEl.code.textContent = net.code || '------';
+  lobbyEl.list.innerHTML = net.players
+    .map((p, i) => {
+      const me = p.id === net.id;
+      const tag = i === 0 ? '房主' : '';
+      return (
+        `<div class="lobby-player${me ? ' me' : ''}" style="--c:${colors[i % 3]}">` +
+        `<i></i><span>${esc(p.name)}</span><em>${tag}${me ? (tag ? ' · 你' : '你') : ''}</em></div>`
+      );
+    })
+    .join('');
+  lobbyEl.start.style.display = net.isHost ? '' : 'none';
+  lobbyEl.start.textContent = net.isHost ? '开始比赛' : '等待房主开始';
+}
+
+function onNetEvent(type, data) {
+  if (type === 'roster') {
+    renderLobby();
+    return;
+  }
+  if (type === 'state') {
+    if (mode === 'race' && netRace) race.setRemote(data);
+    return;
+  }
+  if (type === 'hb') {
+    race.touch(data.id);
+    return;
+  }
+  if (type === 'skill') {
+    if (!net || data.to !== net.id) return;
+    const from = net.players.find((p) => p.id === data.from);
+    hitBy(data.kind, from ? from.name : '对手');
+    return;
+  }
+  if (type === 'start') {
+    if (!net) return;
+    closeLobby();
+    netRace = true;
+    startRace(data.seed, { net: true, cd: Math.max(1.5, (data.cd || 3.4) - 0.15) });
+    return;
+  }
+  if (type === 'full') {
+    lobbyStatus('房间已满（最多 3 人）');
+    return;
+  }
+  if (type === 'left') {
+    if (mode === 'race' && netRace) {
+      const o = race.opponents.find((x) => x.id === data.id);
+      race.takeover(data.id);
+      if (o) hud.toast(`${o.name} 离开了 · AI 接管`, 2200);
+    }
+    renderLobby();
+    return;
+  }
+  if (type === 'disconnect') {
+    lobbyStatus('联机已断开');
+    if (mode === 'race' && netRace) {
+      for (const o of race.opponents) if (o.remote) race.takeover(o.id);
+      netRace = false;
+      hud.toast('网络断开 · 对手转为 AI 托管', 2600);
+    }
+  }
+}
+
+function closeLobby() {
+  lobbyEl.screen.classList.remove('visible');
+}
+
+async function doCreate() {
+  const name = (lobbyEl.name.value || '').trim().slice(0, 8) || '玩家';
+  localStorage.setItem('sr-name', name);
+  lobbyStatus('正在连接联机服务器…');
+  const n = new Net();
+  n.onEvent = onNetEvent;
+  try {
+    await n.create(name);
+    net = n;
+    lobbyEl.setup.classList.add('off');
+    lobbyEl.room.classList.add('on');
+    renderLobby();
+    lobbyStatus('');
+  } catch (e) {
+    n.leave();
+    lobbyStatus(e.message || '连接失败，请稍后再试');
+  }
+}
+
+async function doJoin() {
+  const name = (lobbyEl.name.value || '').trim().slice(0, 8) || '玩家';
+  const code = (lobbyEl.codeIn.value || '').trim().toUpperCase();
+  if (code.length !== 6) {
+    lobbyStatus('房间码是 6 位');
+    return;
+  }
+  localStorage.setItem('sr-name', name);
+  lobbyStatus('正在加入…');
+  const n = new Net();
+  n.onEvent = onNetEvent;
+  try {
+    await n.join(code, name);
+    net = n;
+    lobbyEl.setup.classList.add('off');
+    lobbyEl.room.classList.add('on');
+    renderLobby();
+    lobbyStatus('');
+  } catch (e) {
+    n.leave();
+    lobbyStatus(e.message || '加入失败');
+  }
+}
+
 // ---- UI 绑定 ----
 // 统一用 bindUI：点击后立刻移除焦点。否则按钮保持焦点时，
 // 游戏中按空格会在 keyup 时触发按钮 click（空格激活按钮发生在松开时），
@@ -232,6 +493,50 @@ function bindUI(id, fn) {
 }
 bindUI('startBtn', startGame);
 bindUI('startRaceBtn', () => startRace());
+bindUI('onlineBtn', openLobby);
+bindUI('createRoomBtn', doCreate);
+bindUI('joinRoomBtn', doJoin);
+bindUI('roomStartBtn', () => {
+  if (!net || !net.isHost) {
+    lobbyStatus('只有房主能开始比赛');
+    return;
+  }
+  net.startRace(3.4);
+  closeLobby();
+  netRace = true;
+  startRace(net.seed, { net: true, cd: 3.4 });
+});
+bindUI('roomLeaveBtn', () => {
+  if (net) net.leave();
+  net = null;
+  netRace = false;
+  lobbyEl.setup.classList.remove('off');
+  lobbyEl.room.classList.remove('on');
+  lobbyStatus('');
+});
+bindUI('lobbyBackBtn', () => {
+  if (net) net.leave();
+  net = null;
+  netRace = false;
+  closeLobby();
+  hud.showScreen('title');
+});
+
+// 数字键 1/2/3：对名次表第 N 名释放待用的攻击技能
+window.addEventListener('keydown', (e) => {
+  const m = /^(?:Digit|Numpad)([1-3])$/.exec(e.code);
+  if (m) castAttack(+m[1]);
+});
+
+// 触屏没有数字键：点技能槽 = 丢给最靠前的对手
+const skillBarEl = document.getElementById('skillBar');
+if (skillBarEl) {
+  skillBarEl.addEventListener('click', () => {
+    if (!atkSkill || mode !== 'race') return;
+    const mine = race.rows(player.pos.z).find((r) => r.me);
+    castAttack(mine && mine.place === 1 ? 2 : 1);
+  });
+}
 bindUI('retryBtn', () => (lastPlay === 'race' ? startRace() : startGame()));
 bindUI('homeBtn', backToTitle);
 bindUI('resumeBtn', resume);
@@ -362,13 +667,15 @@ function animate() {
 
   baseSpeed = Math.min(34, 12 + dist * 0.018);
   const diff = clamp(dist / 1600, 0, 1);
-  speed = baseSpeed * (odT > 0 ? 1.5 : 1) * player.speedMul;
+  speed = baseSpeed * (odT > 0 ? 1.5 : 1) * player.speedMul * player.buffUp * player.buffDown;
   city.env = { speed: baseSpeed, diff };
 
   // 过载冲刺（有冷却：冲刺 4 秒 + 冷却 6 秒，防止连放）
   if (odCd > 0) odCd -= dt;
   if (running && actions.dash) {
-    if (energy >= 50 && odT <= 0 && odCd <= 0) {
+    if (player.noFuelT > 0) {
+      hud.toast('⚡ 断电中 · 无法过载', 1000);
+    } else if (energy >= 50 && odT <= 0 && odCd <= 0) {
       odT = 4;
       odCd = 10; // 4s 冲刺 + 6s 冷却
       energy -= 50;
@@ -413,7 +720,7 @@ function animate() {
   if (running) {
     streakT -= dt;
     if (streakT <= 0) streak = 0;
-    const radius = odT > 0 ? 4.2 : 1.6;
+    const radius = odT > 0 ? 4.2 : player.magnetT > 0 ? 4.0 : 1.6;
     for (const c of city.coinsNear(player.pos.z, radius + 3)) {
       const dx = c.x - player.pos.x;
       const dy = c.y - (player.pos.y + 1.0);
@@ -463,13 +770,33 @@ function animate() {
   fx.update(dt);
   audio.setWind(clamp((speed - 10) / 26, 0, 1) + (odT > 0 ? 0.15 : 0));
 
-  // 竞速：幽灵推进 → 名次 → 终点
+  // 竞速：盲盒 → 幽灵推进 → 名次 → 终点
   if (mode === 'race') {
+    const box = powerups.update(dt, player);
+    if (box && running) pickupSkill(box);
     race.update(running ? dt : 0, player.pos.z);
+    // 应用层心跳超时 → 该对手掉线，就地交给 AI 托管（不打断比赛）
+    if (netRace) {
+      for (const o of race.opponents) {
+        if (o.remote && Date.now() - o.lastSeen > 5000) {
+          race.takeover(o.id);
+          hud.toast(`${o.name} 掉线 · AI 接管`, 2200);
+        }
+      }
+    }
+    if (netRace && net && net.ready && running) {
+      netSendT += dt;
+      if (netSendT >= 0.1) {
+        netSendT = 0;
+        net.sendState(player.pos.z, player.pos.x, player.pos.y, player.buffDownT > 0 ? 1 : 0, player.noJumpT > 0 ? 1 : 0);
+      }
+    }
     if (raceState === 'go' && player.pos.z >= RACE_LEN) finishRace();
     else hud.board(race.rows(player.pos.z), fmtTime(race.time));
   }
   hud.hit(player.hitFlash);
+  hud.buffs(buffList());
+  hud.blackout(player.noFuelT > 0 ? 0.8 : 0);
 
   // 相机
   player.applyCamera(stage.camera);
@@ -516,8 +843,18 @@ window.__game = {
   player,
   city,
   race,
+  powerups,
   daylight,
   stage,
+  get atkSkill() {
+    return atkSkill;
+  },
+  get net() {
+    return net;
+  },
+  get netRace() {
+    return netRace;
+  },
   get raceState() {
     return raceState;
   },
@@ -541,6 +878,18 @@ window.__game = {
     setDist: (v) => {
       dist = v;
       daylight.update(v);
+    },
+    giveSkill: (k) => pickupSkill({ skill: k, x: player.pos.x, y: player.pos.y + 1, z: player.pos.z }),
+    cast: (place) => castAttack(place),
+    hitBy: (kind, from) => hitBy(kind, from),
+    toBox: (i) => {
+      const b = powerups.boxes[i];
+      if (!b) return null;
+      player.pos.set(b.x || 0, b.y, b.z);
+      player.prevY = b.y;
+      player.vy = 0;
+      player.grounded = true;
+      return { z: b.z, skill: b.skill };
     },
   },
 };
