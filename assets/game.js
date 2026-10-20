@@ -20303,6 +20303,92 @@ void main() {
       return new _CylinderGeometry(data.radiusTop, data.radiusBottom, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
     }
   };
+  var _v0 = /* @__PURE__ */ new Vector3();
+  var _v1$1 = /* @__PURE__ */ new Vector3();
+  var _normal = /* @__PURE__ */ new Vector3();
+  var _triangle = /* @__PURE__ */ new Triangle();
+  var EdgesGeometry = class extends BufferGeometry {
+    constructor(geometry = null, thresholdAngle = 1) {
+      super();
+      this.type = "EdgesGeometry";
+      this.parameters = {
+        geometry,
+        thresholdAngle
+      };
+      if (geometry !== null) {
+        const precisionPoints = 4;
+        const precision = Math.pow(10, precisionPoints);
+        const thresholdDot = Math.cos(DEG2RAD * thresholdAngle);
+        const indexAttr = geometry.getIndex();
+        const positionAttr = geometry.getAttribute("position");
+        const indexCount = indexAttr ? indexAttr.count : positionAttr.count;
+        const indexArr = [0, 0, 0];
+        const vertKeys = ["a", "b", "c"];
+        const hashes = new Array(3);
+        const edgeData = {};
+        const vertices = [];
+        for (let i = 0; i < indexCount; i += 3) {
+          if (indexAttr) {
+            indexArr[0] = indexAttr.getX(i);
+            indexArr[1] = indexAttr.getX(i + 1);
+            indexArr[2] = indexAttr.getX(i + 2);
+          } else {
+            indexArr[0] = i;
+            indexArr[1] = i + 1;
+            indexArr[2] = i + 2;
+          }
+          const { a, b, c } = _triangle;
+          a.fromBufferAttribute(positionAttr, indexArr[0]);
+          b.fromBufferAttribute(positionAttr, indexArr[1]);
+          c.fromBufferAttribute(positionAttr, indexArr[2]);
+          _triangle.getNormal(_normal);
+          hashes[0] = `${Math.round(a.x * precision)},${Math.round(a.y * precision)},${Math.round(a.z * precision)}`;
+          hashes[1] = `${Math.round(b.x * precision)},${Math.round(b.y * precision)},${Math.round(b.z * precision)}`;
+          hashes[2] = `${Math.round(c.x * precision)},${Math.round(c.y * precision)},${Math.round(c.z * precision)}`;
+          if (hashes[0] === hashes[1] || hashes[1] === hashes[2] || hashes[2] === hashes[0]) {
+            continue;
+          }
+          for (let j = 0; j < 3; j++) {
+            const jNext = (j + 1) % 3;
+            const vecHash0 = hashes[j];
+            const vecHash1 = hashes[jNext];
+            const v0 = _triangle[vertKeys[j]];
+            const v1 = _triangle[vertKeys[jNext]];
+            const hash = `${vecHash0}_${vecHash1}`;
+            const reverseHash = `${vecHash1}_${vecHash0}`;
+            if (reverseHash in edgeData && edgeData[reverseHash]) {
+              if (_normal.dot(edgeData[reverseHash].normal) <= thresholdDot) {
+                vertices.push(v0.x, v0.y, v0.z);
+                vertices.push(v1.x, v1.y, v1.z);
+              }
+              edgeData[reverseHash] = null;
+            } else if (!(hash in edgeData)) {
+              edgeData[hash] = {
+                index0: indexArr[j],
+                index1: indexArr[jNext],
+                normal: _normal.clone()
+              };
+            }
+          }
+        }
+        for (const key in edgeData) {
+          if (edgeData[key]) {
+            const { index0, index1 } = edgeData[key];
+            _v0.fromBufferAttribute(positionAttr, index0);
+            _v1$1.fromBufferAttribute(positionAttr, index1);
+            vertices.push(_v0.x, _v0.y, _v0.z);
+            vertices.push(_v1$1.x, _v1$1.y, _v1$1.z);
+          }
+        }
+        this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      }
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+  };
   var RingGeometry = class _RingGeometry extends BufferGeometry {
     constructor(innerRadius = 0.5, outerRadius = 1, thetaSegments = 32, phiSegments = 1, thetaStart = 0, thetaLength = Math.PI * 2) {
       super();
@@ -23535,6 +23621,14 @@ void main() {
       this.hitFlash = 0;
       this.lastGroundX = 0;
       this.lastGroundZ = 0;
+      this.buffUp = 1;
+      this.buffUpT = 0;
+      this.buffDown = 1;
+      this.buffDownT = 0;
+      this.shieldT = 0;
+      this.magnetT = 0;
+      this.noJumpT = 0;
+      this.noFuelT = 0;
       this._v = new Vector3();
     }
     reset(z) {
@@ -23560,6 +23654,14 @@ void main() {
       this.hitFlash = 0;
       this.lastGroundX = 0;
       this.lastGroundZ = 0;
+      this.buffUp = 1;
+      this.buffUpT = 0;
+      this.buffDown = 1;
+      this.buffDownT = 0;
+      this.shieldT = 0;
+      this.magnetT = 0;
+      this.noJumpT = 0;
+      this.noFuelT = 0;
     }
     get height() {
       return this.sliding ? H_SLIDE : H_STAND;
@@ -23583,6 +23685,18 @@ void main() {
       }
       if (this.invulnT > 0) this.invulnT -= dt;
       this.hitFlash = damp(this.hitFlash, 0, 5, dt);
+      if (this.buffUpT > 0) {
+        this.buffUpT -= dt;
+        if (this.buffUpT <= 0) this.buffUp = 1;
+      }
+      if (this.buffDownT > 0) {
+        this.buffDownT -= dt;
+        if (this.buffDownT <= 0) this.buffDown = 1;
+      }
+      if (this.shieldT > 0) this.shieldT -= dt;
+      if (this.magnetT > 0) this.magnetT -= dt;
+      if (this.noJumpT > 0) this.noJumpT -= dt;
+      if (this.noFuelT > 0) this.noFuelT -= dt;
       if (this._odPrev && !overdrive && !this.grounded) this.glideT = 2;
       this._odPrev = overdrive;
       if (this.glideT > 0) this.glideT -= dt;
@@ -23597,7 +23711,7 @@ void main() {
       if (actions.jump) this.jumpBuf = 0.14;
       this.jumpBuf -= dt;
       this.coyote -= dt;
-      if (this.jumpBuf > 0 && (this.grounded || this.coyote > 0)) {
+      if (this.jumpBuf > 0 && (this.grounded || this.coyote > 0) && this.noJumpT <= 0) {
         this.vy = JUMP;
         this.grounded = false;
         this.sliding = false;
@@ -23718,6 +23832,21 @@ void main() {
     // 竞速模式：撞上障碍不是终点，而是掉一大截速度（并短暂无敌，避免卡在箱子里连撞）
     hit(o) {
       if (this.invulnT > 0) return;
+      if (this.shieldT > 0) {
+        this.shieldT = 0;
+        this.invulnT = 0.9;
+        this.hitFlash = 0.45;
+        this.audio.land(true);
+        this.fx.burst(this._v.set(this.pos.x, this.pos.y + 1.1, this.pos.z), 9109441, {
+          count: 26,
+          speed: 5,
+          up: 2,
+          life: 0.7,
+          spread: 0.9
+        });
+        if (this.onShieldBreak) this.onShieldBreak("crash");
+        return;
+      }
       this.invulnT = 0.85;
       this.speedMul = 0.5;
       this.speedMulT = 1.15;
@@ -23739,6 +23868,11 @@ void main() {
         this.die("fall");
         return;
       }
+      const shielded = this.shieldT > 0;
+      if (shielded) {
+        this.shieldT = 0;
+        if (this.onShieldBreak) this.onShieldBreak("fall");
+      }
       this.pos.set(p.x, p.y, p.z);
       this.prevY = p.y;
       this.vy = 0;
@@ -23750,9 +23884,9 @@ void main() {
       this.lastGroundY = p.y;
       this.lastGroundX = p.x;
       this.lastGroundZ = p.z;
-      this.speedMul = 0.55;
-      this.speedMulT = 1.2;
-      this.hitFlash = 0.8;
+      this.speedMul = shielded ? 0.85 : 0.55;
+      this.speedMulT = shielded ? 0.6 : 1.2;
+      this.hitFlash = shielded ? 0.3 : 0.8;
       this.invulnT = 0.9;
       this.audio.fall();
     }
@@ -24011,6 +24145,9 @@ void main() {
         raceBoard: $("raceBoard"),
         countdown: $("countdown"),
         hitFlash: $("hitFlash"),
+        skillBar: $("skillBar"),
+        buffBar: $("buffBar"),
+        blackout: $("blackout"),
         f1l: $("f1l"),
         f2l: $("f2l"),
         f3l: $("f3l"),
@@ -24021,6 +24158,8 @@ void main() {
       this._hintT = null;
       this._lastDist = -1;
       this._boardKey = "";
+      this._skillKey = "";
+      this._buffKey = "";
     }
     hud(dist2, best2, coins2, energy2, odActive, odCd2 = 0) {
       const d = dist2 | 0;
@@ -24073,6 +24212,41 @@ void main() {
     hit(v) {
       this.el.hitFlash.style.opacity = v < 0.02 ? "0" : (v * 0.62).toFixed(2);
     }
+    // 待释放的攻击技能槽（传 null 清空）
+    skill(sk) {
+      const key = sk ? sk.icon + sk.name : "";
+      if (key === this._skillKey) return;
+      this._skillKey = key;
+      const el = this.el.skillBar;
+      if (!el) return;
+      if (!sk) {
+        el.innerHTML = "";
+        el.classList.remove("on");
+        return;
+      }
+      el.innerHTML = `<div class="skill-slot" style="--c:#ff9a5c"><b>${sk.icon}</b><span>${sk.name}</span><em>\u6309 1/2/3 \u9009\u76EE\u6807</em></div>`;
+      el.classList.add("on");
+    }
+    // 当前生效的 buff / debuff
+    buffs(list) {
+      const key = list.map((b) => b.icon + (b.t > 0 ? Math.ceil(b.t) : "")).join("|");
+      if (key === this._buffKey) return;
+      this._buffKey = key;
+      const el = this.el.buffBar;
+      if (!el) return;
+      el.innerHTML = list.map(
+        (b) => `<div class="buff" style="--c:${b.color || "#9fe4ff"}"><b>${b.icon}</b><span>${b.name}</span>` + (b.t > 0 ? `<em>${Math.ceil(b.t)}</em>` : "") + `</div>`
+      ).join("");
+    }
+    // 断电遮罩：0~1
+    blackout(v) {
+      if (!this.el.blackout) return;
+      const o = v <= 0 ? "0" : (v * 0.92).toFixed(2);
+      if (o !== this._blackoutV) {
+        this._blackoutV = o;
+        this.el.blackout.style.opacity = o;
+      }
+    }
     touch(on) {
       this.el.touchUI.classList.toggle("on", on);
       document.getElementById("touchArea").classList.toggle("on", on);
@@ -24093,7 +24267,12 @@ void main() {
         this.el[k].classList.toggle("visible", k === name);
       }
       this.el.hud.classList.toggle("hidden", name === "title");
-      if (name === "title") this.race(false);
+      if (name === "title") {
+        this.race(false);
+        this.skill(null);
+        this.buffs([]);
+        this.blackout(0);
+      }
     }
     setDeath(type) {
       this.el.deathLabel.textContent = type === "fall" ? "\u4F60\u5760\u5165\u4E86\u697C\u4E0E\u697C\u4E4B\u95F4\u7684\u9EC4\u660F" : "\u4F60\u649E\u4E0A\u4E86\u5929\u53F0\u4E0A\u7684\u969C\u788D\u7269";
@@ -24512,6 +24691,77 @@ void main() {
     }
     _addAI(i, seed) {
       const color = AI_COLORS[i % AI_COLORS.length];
+      const o = this._makeGhost(AI_NAMES[i % AI_NAMES.length], color);
+      o.ai = true;
+      o.z = -5 - i * 5;
+      o.x = (i - 0.5) * 3;
+      o.y = 10;
+      const rng = mulberry32((seed | 0) + i * 7919 + 13);
+      o.pace = 0.955 + rng() * 0.065;
+      o.wob = rng() * 6.283;
+      o.t = rng() * 3;
+      this.opponents.push(o);
+    }
+    // 联机对手：位置由网络驱动（ai=false），断线后由 net 调用 takeover() 转 AI 托管
+    addHuman(id, name, color, z = -4) {
+      const o = this._makeGhost(name, color);
+      o.id = id;
+      o.ai = false;
+      o.remote = true;
+      o.z = z;
+      o.netZ = z;
+      o.netX = 0;
+      o.netY = 10;
+      o.pace = 1;
+      o.wob = Math.random() * 6.283;
+      o.t = Math.random() * 3;
+      this.opponents.push(o);
+      return o;
+    }
+    // 网络位置：只记录目标值，渲染时做阻尼插值（否则每 100ms 一跳很抖）
+    setRemote(p) {
+      const id = p.id || p.from;
+      const o = this.opponents.find((x) => x.id === id);
+      if (!o) return;
+      o.netZ = p.z;
+      o.netX = p.x === void 0 ? o.netX : p.x;
+      o.netY = p.y === void 0 ? o.netY : p.y;
+      o.lastSeen = Date.now();
+      o.slowT = p.slow || 0;
+      o.lockT = p.lock || 0;
+      if (o.z < p.z - 40) o.z = p.z - 40;
+    }
+    // 心跳：证明这个对手还活着（应用层判定，不依赖 TCP 断开）
+    touch(id) {
+      const o = this.opponents.find((x) => x.id === id);
+      if (o) o.lastSeen = Date.now();
+    }
+    // 断线 → 就地转 AI 托管，继续以当前速度跑完，别让比赛变成一个人的独角戏
+    takeover(id) {
+      const o = this.opponents.find((x) => x.id === id);
+      if (!o) return null;
+      o.ai = true;
+      o.remote = false;
+      o.pace = Math.min(1.02, Math.max(0.9, (12 + o.z * 0.018) / Math.max(1, 12 + o.z * 0.018)));
+      return o;
+    }
+    removeHuman(id) {
+      const i = this.opponents.findIndex((x) => x.id === id);
+      if (i < 0) return;
+      const o = this.opponents[i];
+      o.root.visible = false;
+      this.opponents.splice(i, 1);
+    }
+    // 技能命中：AI 直接生效；真人对手由上层通过 net 通知对方本地结算
+    applySkill(o, kind) {
+      if (!o) return;
+      if (kind === "headwind") o.slowT = 4;
+      else if (kind === "blackout") {
+        o.slowT = 2;
+        o.darkT = 5;
+      } else if (kind === "lockjump") o.lockT = 4;
+    }
+    _makeGhost(name, color) {
       const root = new Group();
       const body = new Mesh(
         this._geo,
@@ -24535,27 +24785,35 @@ void main() {
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.04;
       root.add(ring);
-      const tag = nameTag(AI_NAMES[i % AI_NAMES.length], color);
+      const tag = nameTag(name, color);
       tag.position.y = 2.15;
       root.add(tag);
       this._root.add(root);
-      const rng = mulberry32((seed | 0) + i * 7919 + 13);
-      this.opponents.push({
+      return {
         ai: true,
-        name: AI_NAMES[i % AI_NAMES.length],
+        remote: false,
+        id: null,
+        name,
         color,
         root,
-        z: -5 - i * 5,
-        // 起跑线后错开排队
-        x: (i - 0.5) * 3,
+        body,
+        ring,
+        z: -5,
+        x: 0,
         y: 10,
-        pace: 0.955 + rng() * 0.065,
-        // 相对玩家速度的系数：有强有弱
-        wob: rng() * 6.283,
-        t: rng() * 3,
+        netZ: -5,
+        netX: 0,
+        netY: 10,
+        pace: 1,
+        wob: 0,
+        t: 0,
         finished: false,
-        finishT: 0
-      });
+        finishT: 0,
+        slowT: 0,
+        lockT: 0,
+        darkT: 0,
+        lastSeen: Date.now()
+      };
     }
     // 生成要跑到所有对手前面，否则领先的幽灵会掉进"还没生成的地图"
     maxZ() {
@@ -24566,19 +24824,32 @@ void main() {
     update(dt, playerZ) {
       this.time += dt;
       for (const o of this.opponents) {
+        o.t += dt;
+        if (o.slowT > 0) o.slowT -= dt;
+        if (o.lockT > 0) o.lockT -= dt;
+        if (o.darkT > 0) o.darkT -= dt;
         if (o.finished) {
           o.root.position.set(o.x, o.y, o.z);
           continue;
         }
-        o.t += dt;
-        const base = Math.min(34, 12 + o.z * 0.018) * o.pace;
-        o.z += base * (1 + Math.sin(o.t * 1.7) * 0.035) * dt;
-        const seg = this.city.platformAt(o.x, o.z);
-        if (seg) {
-          o.y = seg.y;
-          const target = seg.cx + Math.sin(o.z * 0.11 + o.wob) * (seg.w * 0.18);
-          o.x = damp(o.x, clamp2(target, seg.cx - seg.w / 2 + 0.7, seg.cx + seg.w / 2 - 0.7), 4, dt);
+        if (o.ai) {
+          const base = Math.min(34, 12 + o.z * 0.018) * o.pace;
+          let mul = 1;
+          if (o.slowT > 0) mul *= 0.72;
+          if (o.lockT > 0) mul *= 0.86;
+          o.z += base * mul * (1 + Math.sin(o.t * 1.7) * 0.035) * dt;
+          const seg = this.city.platformAt(o.x, o.z);
+          if (seg) {
+            o.y = seg.y;
+            const target = seg.cx + Math.sin(o.z * 0.11 + o.wob) * (seg.w * 0.18);
+            o.x = damp(o.x, clamp2(target, seg.cx - seg.w / 2 + 0.7, seg.cx + seg.w / 2 - 0.7), 4, dt);
+          }
+        } else {
+          o.z = damp(o.z, o.netZ, 12, dt);
+          o.x = damp(o.x, o.netX, 9, dt);
+          o.y = damp(o.y, o.netY, 9, dt);
         }
+        if (o.body) o.body.material.emissiveIntensity = o.darkT > 0 ? 0.3 : o.slowT > 0 ? 0.55 : 0.9;
         o.root.position.set(o.x, o.y, o.z);
         if (o.z >= this.len) {
           o.finished = true;
@@ -24592,9 +24863,10 @@ void main() {
     // 名次表：按赛道进度降序，相差的米数直接给玩家看
     rows(playerZ) {
       const list = [
-        { name: "\u4F60", z: playerZ, me: true, color: "#6fd6ff", done: false },
+        { name: "\u4F60", z: playerZ, me: true, color: "#6fd6ff", done: false, id: null },
         ...this.opponents.map((o) => ({
           name: o.name,
+          id: o.id,
           z: Math.min(o.z, this.len),
           me: false,
           color: "#" + o.color.toString(16).padStart(6, "0"),
@@ -24605,6 +24877,7 @@ void main() {
       return list.map((r, i) => ({
         place: i + 1,
         name: r.name,
+        id: r.id,
         me: r.me,
         color: r.color,
         gap: r.me ? "\u2014" : r.done ? "\u5B8C\u8D5B" : `${r.z > playerZ ? "+" : ""}${Math.round(r.z - playerZ)}m`
@@ -24612,6 +24885,471 @@ void main() {
     }
     setVisible(on) {
       this._root.visible = on;
+    }
+  };
+
+  // src/powerups.js
+  var SKILLS = {
+    gale: { name: "\u75BE\u98CE", icon: "\u{1F32C}", self: true, dur: 8, color: 8250367, desc: "\u901F\u5EA6 +22% \xB7 8s" },
+    shield: { name: "\u62A4\u76FE", icon: "\u{1F6E1}", self: true, dur: 10, color: 9109441, desc: "\u514D\u75AB\u4E00\u6B21\u649E\u51FB/\u5760\u843D \xB7 10s" },
+    magnet: { name: "\u78C1\u529B", icon: "\u{1F9F2}", self: true, dur: 8, color: 16765565, desc: "\u5927\u8303\u56F4\u5438\u53D6\u82AF\u7247 \xB7 8s" },
+    headwind: { name: "\u9006\u98CE", icon: "\u{1F32A}", self: false, dur: 4, color: 16751196, desc: "\u76EE\u6807\u51CF\u901F 28% \xB7 4s" },
+    blackout: { name: "\u65AD\u7535", icon: "\u{1F50C}", self: false, dur: 5, color: 13215487, desc: "\u76EE\u6807\u80FD\u91CF\u6E05\u96F6 \xB7 5s \u65E0\u6CD5\u8FC7\u8F7D" },
+    lockjump: { name: "\u9501\u8DF3", icon: "\u26D3", self: false, dur: 4, color: 16747146, desc: "\u76EE\u6807\u65E0\u6CD5\u8DF3\u8DC3 \xB7 4s" }
+  };
+  var SKILL_KEYS = Object.keys(SKILLS);
+  var BOX_FIRST = 220;
+  var BOX_STEP = 200;
+  var BOX_COUNT = 11;
+  var Powerups = class {
+    constructor(stage2, city2) {
+      this.stage = stage2;
+      this.city = city2;
+      this.root = new Group();
+      stage2.scene.add(this.root);
+      this.boxes = [];
+      this._geo = new BoxGeometry(0.78, 0.78, 0.78);
+      this._edgeGeo = new EdgesGeometry(this._geo);
+      this._boxMat = new MeshStandardMaterial({
+        color: 1581614,
+        emissive: 2845318,
+        emissiveIntensity: 0.55,
+        roughness: 0.42,
+        metalness: 0.62
+      });
+      this._lineMat = new LineBasicMaterial({ color: 10478847, transparent: true, opacity: 0.85 });
+      this._ringGeo = new RingGeometry(0.62, 0.74, 30);
+      for (let i = 0; i < BOX_COUNT; i++) {
+        const g = new Group();
+        const body = new Mesh(this._geo, this._boxMat);
+        const edge = new LineSegments(this._edgeGeo, this._lineMat);
+        const ring = new Mesh(
+          this._ringGeo,
+          new MeshBasicMaterial({ color: 10478847, transparent: true, opacity: 0.5, side: DoubleSide })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = -0.62;
+        g.add(body, edge, ring);
+        g.visible = false;
+        this.root.add(g);
+        this.boxes.push({ mesh: g, ring, z: BOX_FIRST + i * BOX_STEP, x: 0, y: 10, taken: false, aligned: false, ph: i * 1.7, skill: "gale" });
+      }
+    }
+    reset(seed) {
+      const rng = mulberry32((seed | 0) ^ 6240924 | 0);
+      for (let i = 0; i < this.boxes.length; i++) {
+        const b = this.boxes[i];
+        b.z = BOX_FIRST + i * BOX_STEP;
+        b.taken = false;
+        b.aligned = false;
+        b.mesh.visible = false;
+        b.skill = SKILL_KEYS[rng() * SKILL_KEYS.length | 0];
+      }
+    }
+    setVisible(on) {
+      this.root.visible = on;
+    }
+    // 盒子所在位置可能正好是楼缝：吸附到前方最近的一块楼顶上
+    _align(b) {
+      const seg = this.city.platformNear(b.z);
+      if (seg) {
+        b.x = clamp2(seg.cx, seg.cx - seg.w / 2 + 0.7, seg.cx + seg.w / 2 - 0.7);
+        b.y = seg.y + 1.05;
+        b.aligned = true;
+        return true;
+      }
+      const p = this.city.respawnPoint(0, b.z, 90);
+      if (!p) return false;
+      b.z = p.z;
+      b.x = p.x;
+      b.y = p.y + 1.05;
+      b.aligned = true;
+      return true;
+    }
+    // 返回本帧被吃掉的盒子（没有则 null）
+    update(dt, player2) {
+      let picked = null;
+      for (const b of this.boxes) {
+        if (b.taken) continue;
+        if (b.z < player2.pos.z - 25 || b.z > player2.pos.z + 220) {
+          b.mesh.visible = false;
+          continue;
+        }
+        if (!b.aligned && !this._align(b)) continue;
+        b.ph += dt;
+        b.mesh.visible = true;
+        b.mesh.position.set(b.x, b.y + Math.sin(b.ph * 1.6) * 0.12, b.z);
+        b.mesh.rotation.y = b.ph * 0.9;
+        b.ring.rotation.z = -b.ph * 1.4;
+        if (Math.abs(player2.pos.z - b.z) < 1.6 && Math.abs(player2.pos.x - b.x) < 1.7 && Math.abs(player2.pos.y + 0.9 - b.y) < 2.4) {
+          b.taken = true;
+          b.mesh.visible = false;
+          picked = b;
+        }
+      }
+      return picked;
+    }
+  };
+
+  // src/net.js
+  var TEX = new TextEncoder();
+  var utf8 = (s) => TEX.encode(s);
+  function lenPrefixed(bytes) {
+    const out = new Uint8Array(bytes.length + 2);
+    out[0] = bytes.length >> 8 & 255;
+    out[1] = bytes.length & 255;
+    out.set(bytes, 2);
+    return out;
+  }
+  function remainingLen(n) {
+    const out = [];
+    do {
+      let d = n % 128;
+      n = Math.floor(n / 128);
+      if (n > 0) d |= 128;
+      out.push(d);
+    } while (n > 0);
+    return new Uint8Array(out);
+  }
+  function joinBytes(list) {
+    let len = 0;
+    for (const a of list) len += a.length;
+    const out = new Uint8Array(len);
+    let o = 0;
+    for (const a of list) {
+      out.set(a, o);
+      o += a.length;
+    }
+    return out;
+  }
+  function packet(type, flags, payload) {
+    return joinBytes([new Uint8Array([type << 4 | flags]), remainingLen(payload.length), payload]);
+  }
+  function mqttConnectPkt(clientId, keepalive = 45) {
+    const payload = joinBytes([
+      new Uint8Array([0, 4]),
+      utf8("MQTT"),
+      new Uint8Array([4, 2, keepalive >> 8 & 255, keepalive & 255]),
+      lenPrefixed(utf8(clientId))
+    ]);
+    return packet(1, 0, payload);
+  }
+  function mqttSubscribePkt(topic, pid = 1) {
+    const payload = joinBytes([
+      new Uint8Array([pid >> 8 & 255, pid & 255]),
+      lenPrefixed(utf8(topic)),
+      new Uint8Array([0])
+    ]);
+    return packet(8, 2, payload);
+  }
+  function mqttPublishPkt(topic, text) {
+    return packet(3, 0, joinBytes([lenPrefixed(utf8(topic)), utf8(text)]));
+  }
+  var MqttParser = class {
+    constructor() {
+      this.buf = new Uint8Array(0);
+    }
+    push(data) {
+      const merged = new Uint8Array(this.buf.length + data.length);
+      merged.set(this.buf);
+      merged.set(data, this.buf.length);
+      this.buf = merged;
+      const out = [];
+      for (; ; ) {
+        if (this.buf.length < 2) break;
+        const type = this.buf[0] >> 4;
+        let mul = 1;
+        let len = 0;
+        let i = 1;
+        let b = 0;
+        let incomplete = false;
+        do {
+          if (i >= this.buf.length) {
+            incomplete = true;
+            break;
+          }
+          b = this.buf[i++];
+          len += (b & 127) * mul;
+          mul *= 128;
+        } while (b & 128);
+        if (incomplete || this.buf.length < i + len) break;
+        out.push({ type, payload: this.buf.subarray(i, i + len) });
+        this.buf = this.buf.subarray(i + len);
+      }
+      return out;
+    }
+  };
+  function decodePublish(payload) {
+    if (payload.length < 2) return null;
+    const tl = payload[0] << 8 | payload[1];
+    if (payload.length < 2 + tl) return null;
+    const topic = new TextDecoder().decode(payload.subarray(2, 2 + tl));
+    const text = new TextDecoder().decode(payload.subarray(2 + tl));
+    return { topic, text };
+  }
+  var BROKERS = ["wss://broker.hivemq.com:8884/mqtt", "wss://broker.emqx.io:8084/mqtt"];
+  var TOPIC = (code) => `skyline-rush/v1/${code}`;
+  var Mqtt = class {
+    constructor(url) {
+      this.url = url;
+      this.ws = null;
+      this.parser = new MqttParser();
+      this.ready = false;
+      this.onPublish = null;
+      this.onClose = null;
+      this.onBroken = null;
+      this._pid = 0;
+      this._pingT = null;
+    }
+    connect() {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            try {
+              this.ws && this.ws.close();
+            } catch {
+            }
+            reject(new Error("\u8FDE\u63A5\u8D85\u65F6"));
+          }
+        }, 6e3);
+        try {
+          this.ws = new WebSocket(this.url, "mqtt");
+        } catch (e) {
+          clearTimeout(timer);
+          reject(e);
+          return;
+        }
+        this.ws.binaryType = "arraybuffer";
+        this.ws.onopen = () => {
+          this.ws.send(mqttConnectPkt("sr_" + Math.random().toString(36).slice(2, 10)));
+        };
+        this.ws.onerror = () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            reject(new Error("\u65E0\u6CD5\u8FDE\u63A5\u8054\u673A\u670D\u52A1\u5668"));
+          }
+        };
+        this.ws.onclose = () => {
+          this.ready = false;
+          clearInterval(this._pingT);
+          if (this.onClose) this.onClose();
+        };
+        this.ws.onmessage = (ev) => {
+          const list = this.parser.push(new Uint8Array(ev.data));
+          for (const p of list) {
+            if (p.type === 2) {
+              this.ready = true;
+              if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                resolve();
+              }
+            } else if (p.type === 3) {
+              const m = decodePublish(p.payload);
+              if (m && this.onPublish) this.onPublish(m.topic, m.text);
+            }
+          }
+        };
+      });
+    }
+    subscribe(topic) {
+      this.ws.send(mqttSubscribePkt(topic, ++this._pid));
+      clearInterval(this._pingT);
+      this._pingT = setInterval(() => {
+        if (this.ready && this.ws.readyState === 1) this.ws.send(new Uint8Array([192, 0]));
+      }, 2e4);
+    }
+    publish(topic, obj) {
+      if (!this.ready || !this.ws || this.ws.readyState !== 1) return false;
+      this.ws.send(mqttPublishPkt(topic, JSON.stringify(obj)));
+      return true;
+    }
+    close() {
+      clearInterval(this._pingT);
+      this.ready = false;
+      try {
+        this.ws && this.ws.close();
+      } catch {
+      }
+      this.ws = null;
+    }
+  };
+  var CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  function genCode(n = 6) {
+    let s = "";
+    for (let i = 0; i < n; i++) s += CODE_CHARS[Math.random() * CODE_CHARS.length | 0];
+    return s;
+  }
+  var Net = class {
+    constructor() {
+      this.id = "p" + Math.random().toString(36).slice(2, 10);
+      this.code = "";
+      this.name = "";
+      this.seed = 0;
+      this.players = [];
+      this.isHost = false;
+      this.ready = false;
+      this.onEvent = () => {
+      };
+      this._mqtt = null;
+      this._rosterWait = null;
+      this._hbT = null;
+    }
+    get topic() {
+      return TOPIC(this.code);
+    }
+    async _open() {
+      let lastErr = null;
+      for (const url of BROKERS) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const m = new Mqtt(url);
+          try {
+            await m.connect();
+            this._mqtt = m;
+            this.ready = true;
+            m.onPublish = (_t, text) => this._onMessage(text);
+            m.onClose = () => {
+              if (!this.ready) return;
+              this.ready = false;
+              this.onEvent("disconnect");
+            };
+            m.subscribe(this.topic);
+            clearInterval(this._hbT);
+            this._hbT = setInterval(() => this._send({ t: "hb" }), 1500);
+            return;
+          } catch (e) {
+            lastErr = e;
+            m.close();
+          }
+        }
+      }
+      throw lastErr || new Error("\u65E0\u6CD5\u8FDE\u63A5\u8054\u673A\u670D\u52A1\u5668");
+    }
+    _send(obj) {
+      if (!this._mqtt) return false;
+      return this._mqtt.publish(this.topic, { ...obj, from: this.id });
+    }
+    _broadcastRoster() {
+      this._send({ t: "roster", players: this.players, seed: this.seed, host: this.id });
+    }
+    async create(name) {
+      this.name = name || "\u73A9\u5BB6";
+      this.isHost = true;
+      this.seed = Math.random() * 1e9 | 0;
+      this.code = genCode();
+      await this._open();
+      this.players = [{ id: this.id, name: this.name }];
+      this._send({ t: "join", id: this.id, name: this.name, host: true });
+      this.onEvent("roster", this.players);
+      return this.code;
+    }
+    async join(code, name) {
+      this.name = name || "\u73A9\u5BB6";
+      this.isHost = false;
+      this.code = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+      if (this.code.length !== 6) throw new Error("\u623F\u95F4\u7801\u662F 6 \u4F4D");
+      await this._open();
+      let lastErr = new Error("\u623F\u95F4\u4E0D\u5B58\u5728\uFF0C\u6216\u623F\u4E3B\u5DF2\u7ECF\u79BB\u5F00");
+      for (let attempt = 0; attempt < 3; attempt++) {
+        this._send({ t: "join", id: this.id, name: this.name });
+        try {
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              this._rosterWait = null;
+              reject(lastErr);
+            }, 2400);
+            this._rosterWait = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+          });
+          return this.code;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr;
+    }
+    startRace(cd = 3.4) {
+      this._send({ t: "start", seed: this.seed, cd });
+    }
+    sendState(z, x, y, slow, lock) {
+      this._send({ t: "st", z: Math.round(z * 10) / 10, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, slow, lock });
+    }
+    sendSkill(to, kind) {
+      this._send({ t: "sk", to, kind });
+    }
+    leave() {
+      if (this._mqtt) this._send({ t: "bye", id: this.id });
+      clearInterval(this._hbT);
+      if (this._mqtt) this._mqtt.close();
+      this._mqtt = null;
+      this.ready = false;
+      this.players = [];
+    }
+    _onMessage(text) {
+      let m;
+      try {
+        m = JSON.parse(text);
+      } catch {
+        return;
+      }
+      if (!m || m.from === this.id) return;
+      switch (m.t) {
+        case "join": {
+          if (!this.isHost) return;
+          if (this.players.length >= 3) {
+            this._send({ t: "full", to: m.id });
+            return;
+          }
+          if (!this.players.some((p) => p.id === m.id)) this.players.push({ id: m.id, name: m.name || "\u73A9\u5BB6" });
+          this._broadcastRoster();
+          this.onEvent("roster", this.players);
+          break;
+        }
+        case "roster": {
+          const mine = (m.players || []).find((p) => p.id === this.id);
+          if (!mine) return;
+          this.players = m.players;
+          this.seed = m.seed;
+          this.isHost = m.host === this.id;
+          if (this._rosterWait) {
+            const w = this._rosterWait;
+            this._rosterWait = null;
+            w();
+          }
+          this.onEvent("roster", this.players);
+          break;
+        }
+        case "full":
+          if (m.to === this.id) this.onEvent("full");
+          break;
+        case "start":
+          this.onEvent("start", { seed: m.seed, cd: m.cd });
+          break;
+        case "st":
+          this.onEvent("state", m);
+          break;
+        case "hb":
+          this.onEvent("hb", { id: m.from });
+          break;
+        case "sk":
+          this.onEvent("skill", m);
+          break;
+        case "bye":
+          if (this.isHost) {
+            this.players = this.players.filter((p) => p.id !== m.id);
+            this._broadcastRoster();
+            this.onEvent("roster", this.players);
+          }
+          this.onEvent("left", m);
+          break;
+        default:
+          break;
+      }
     }
   };
 
@@ -24635,6 +25373,7 @@ void main() {
   var input = new Input();
   var daylight = new Daylight(stage, city);
   var race = new Race(stage, city);
+  var powerups = new Powerups(stage, city);
   var isCoarse = matchMedia("(pointer: coarse)").matches;
   var BEST_KEY = "skyline-rush-best";
   var RACE_BEST_KEY = "skyline-rush-race-best";
@@ -24664,6 +25403,11 @@ void main() {
   var fpsTime = 0;
   var fpsFrames = 0;
   var best = +(localStorage.getItem(BEST_KEY) || 0);
+  var atkSkill = null;
+  var net = null;
+  var netRace = false;
+  var netSendT = 0;
+  var seedCur = 0;
   city.env = { speed: 10, diff: 0 };
   city.reset();
   function startGame() {
@@ -24672,6 +25416,13 @@ void main() {
     player.reset(0);
     player.raceMode = false;
     race.setVisible(false);
+    powerups.setVisible(false);
+    powerups.reset(city.seed || 0);
+    atkSkill = null;
+    netRace = false;
+    hud.skill(null);
+    hud.buffs([]);
+    hud.blackout(0);
     baseSpeed = 12;
     speed = 12;
     dist = 0;
@@ -24701,14 +25452,27 @@ void main() {
     const s = t - m * 60;
     return `${m}:${s.toFixed(2).padStart(5, "0")}`;
   }
-  function startRace(seed) {
+  function startRace(seed, opts = {}) {
     audio.init();
     const s = seed === void 0 ? Math.random() * 1e9 | 0 : seed | 0;
+    seedCur = s;
     city.reset(s);
     player.reset(0);
     player.raceMode = true;
-    race.reset(s, { ai: 2, len: RACE_LEN });
+    race.reset(s, { ai: opts.net ? 0 : 2, len: RACE_LEN });
+    if (opts.net && net) {
+      const others = net.players.filter((p) => p.id !== net.id);
+      others.forEach((p, i) => race.addHuman(p.id, p.name, [16756838, 12160255][i % 2], -4 - i * 4));
+    }
     race.setVisible(true);
+    powerups.reset(s);
+    powerups.setVisible(true);
+    atkSkill = null;
+    hud.skill(null);
+    hud.buffs([]);
+    hud.blackout(0);
+    netSendT = 0;
+    player.onShieldBreak = (how) => hud.toast(how === "fall" ? "\u{1F6E1} \u62A4\u76FE\u62B5\u6D88\u4E86\u5760\u843D" : "\u{1F6E1} \u62A4\u76FE\u6321\u4F4F\u4E86\u649E\u51FB", 1500);
     baseSpeed = 12;
     speed = 12;
     dist = 0;
@@ -24725,7 +25489,7 @@ void main() {
     mode = "race";
     lastPlay = "race";
     raceState = "countdown";
-    cdT = 3.4;
+    cdT = opts.cd || 3.4;
     lastCd = "";
     hud.showScreen(null);
     hud.race(true);
@@ -24768,6 +25532,9 @@ void main() {
     hud.setRaceResult(place, race.opponents.length + 1, fmtTime(t), coins, isBest);
     hud.showScreen("over");
     hud.race(false);
+    hud.skill(null);
+    hud.buffs([]);
+    hud.blackout(0);
     hud.touch(false);
     hud.speedFx(false);
     hud.countdown(null);
@@ -24780,6 +25547,16 @@ void main() {
     ghostZ = 0;
     player.raceMode = false;
     race.setVisible(false);
+    powerups.setVisible(false);
+    atkSkill = null;
+    netRace = false;
+    if (net) {
+      net.leave();
+      net = null;
+    }
+    hud.skill(null);
+    hud.buffs([]);
+    hud.blackout(0);
     hud.race(false);
     hud.countdown(null);
     hud.hit(0);
@@ -24804,6 +25581,201 @@ void main() {
     hud.touch(isCoarse);
     syncRotate();
   }
+  function buffList() {
+    const out = [];
+    if (player.buffUpT > 0) out.push({ icon: "\u{1F32C}", name: "\u75BE\u98CE", t: player.buffUpT, color: "#7de3ff" });
+    if (player.buffDownT > 0) out.push({ icon: "\u{1F32A}", name: "\u9006\u98CE", t: player.buffDownT, color: "#ff9a5c" });
+    if (player.shieldT > 0) out.push({ icon: "\u{1F6E1}", name: "\u62A4\u76FE", t: player.shieldT, color: "#8affc1" });
+    if (player.magnetT > 0) out.push({ icon: "\u{1F9F2}", name: "\u78C1\u529B", t: player.magnetT, color: "#ffd27d" });
+    if (player.noJumpT > 0) out.push({ icon: "\u26D3", name: "\u9501\u8DF3", t: player.noJumpT, color: "#ff8a8a" });
+    if (player.noFuelT > 0) out.push({ icon: "\u{1F50C}", name: "\u65AD\u7535", t: player.noFuelT, color: "#c9a6ff" });
+    return out;
+  }
+  function pickupSkill(box) {
+    const s = SKILLS[box.skill];
+    fx.burst(new Vector3(box.x, box.y, box.z), s.color, { count: 18, speed: 3.5, up: 1.8, life: 0.6, spread: 0.5 });
+    audio.coin(2);
+    if (s.self) {
+      if (box.skill === "gale") {
+        player.buffUp = 1.22;
+        player.buffUpT = s.dur;
+      } else if (box.skill === "shield") {
+        player.shieldT = s.dur;
+      } else if (box.skill === "magnet") {
+        player.magnetT = s.dur;
+      }
+      hud.toast(`${s.icon} ${s.name} \xB7 ${s.desc}`, 1700);
+    } else {
+      atkSkill = box.skill;
+      hud.skill({ icon: s.icon, name: s.name });
+      hud.toast(`${s.icon} \u62FF\u5230 ${s.name} \xB7 \u6309 1/2/3 \u9009\u76EE\u6807`, 1900);
+    }
+  }
+  function castAttack(place) {
+    if (mode !== "race" || !atkSkill || !player.alive) return;
+    const row = race.rows(player.pos.z).find((r) => r.place === place);
+    if (!row || row.me) {
+      hud.toast("\u8981\u9009\u5BF9\u624B\u7684\u540D\u6B21", 1e3);
+      return;
+    }
+    const o = race.opponents.find((x) => x.id === row.id) || race.opponents.find((x) => x.name === row.name);
+    if (!o) return;
+    const s = SKILLS[atkSkill];
+    race.applySkill(o, atkSkill);
+    if (net && netRace && net.ready && o.remote) net.sendSkill(o.id, atkSkill);
+    hud.toast(`${s.icon} ${s.name} \u2192 ${o.name}`, 1500);
+    audio.ui();
+    atkSkill = null;
+    hud.skill(null);
+  }
+  function hitBy(kind, fromName) {
+    const s = SKILLS[kind];
+    if (!s) return;
+    if (kind === "headwind") {
+      player.buffDown = 0.72;
+      player.buffDownT = s.dur;
+    } else if (kind === "blackout") {
+      energy = 0;
+      player.noFuelT = s.dur;
+      player.buffDown = 0.9;
+      player.buffDownT = 3;
+    } else if (kind === "lockjump") {
+      player.noJumpT = s.dur;
+    }
+    hud.toast(`\u88AB ${fromName || "\u5BF9\u624B"} \u7684 ${s.icon}${s.name} \u547D\u4E2D`, 1700);
+    hud.hit(0.9);
+    audio.crash();
+  }
+  var lobbyEl = {
+    screen: document.getElementById("lobby"),
+    setup: document.getElementById("lobbySetup"),
+    room: document.getElementById("lobbyRoom"),
+    code: document.getElementById("roomCode"),
+    list: document.getElementById("lobbyList"),
+    status: document.getElementById("lobbyStatus"),
+    name: document.getElementById("nameInput"),
+    codeIn: document.getElementById("codeInput"),
+    start: document.getElementById("roomStartBtn")
+  };
+  function lobbyStatus(msg) {
+    if (lobbyEl.status) lobbyEl.status.textContent = msg || "";
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  }
+  function openLobby() {
+    lobbyEl.screen.classList.add("visible");
+    if (!lobbyEl.name.value) lobbyEl.name.value = localStorage.getItem("sr-name") || "";
+    lobbyStatus("");
+    if (!net) {
+      lobbyEl.setup.classList.remove("off");
+      lobbyEl.room.classList.remove("on");
+    }
+  }
+  function renderLobby() {
+    if (!net) return;
+    const colors = ["#6fd6ff", "#ffb066", "#b98cff"];
+    lobbyEl.code.textContent = net.code || "------";
+    lobbyEl.list.innerHTML = net.players.map((p, i) => {
+      const me = p.id === net.id;
+      const tag = i === 0 ? "\u623F\u4E3B" : "";
+      return `<div class="lobby-player${me ? " me" : ""}" style="--c:${colors[i % 3]}"><i></i><span>${esc(p.name)}</span><em>${tag}${me ? tag ? " \xB7 \u4F60" : "\u4F60" : ""}</em></div>`;
+    }).join("");
+    lobbyEl.start.style.display = net.isHost ? "" : "none";
+    lobbyEl.start.textContent = net.isHost ? "\u5F00\u59CB\u6BD4\u8D5B" : "\u7B49\u5F85\u623F\u4E3B\u5F00\u59CB";
+  }
+  function onNetEvent(type, data) {
+    if (type === "roster") {
+      renderLobby();
+      return;
+    }
+    if (type === "state") {
+      if (mode === "race" && netRace) race.setRemote(data);
+      return;
+    }
+    if (type === "hb") {
+      race.touch(data.id);
+      return;
+    }
+    if (type === "skill") {
+      if (!net || data.to !== net.id) return;
+      const from = net.players.find((p) => p.id === data.from);
+      hitBy(data.kind, from ? from.name : "\u5BF9\u624B");
+      return;
+    }
+    if (type === "start") {
+      if (!net) return;
+      closeLobby();
+      netRace = true;
+      startRace(data.seed, { net: true, cd: Math.max(1.5, (data.cd || 3.4) - 0.15) });
+      return;
+    }
+    if (type === "full") {
+      lobbyStatus("\u623F\u95F4\u5DF2\u6EE1\uFF08\u6700\u591A 3 \u4EBA\uFF09");
+      return;
+    }
+    if (type === "left") {
+      if (mode === "race" && netRace) {
+        const o = race.opponents.find((x) => x.id === data.id);
+        race.takeover(data.id);
+        if (o) hud.toast(`${o.name} \u79BB\u5F00\u4E86 \xB7 AI \u63A5\u7BA1`, 2200);
+      }
+      renderLobby();
+      return;
+    }
+    if (type === "disconnect") {
+      lobbyStatus("\u8054\u673A\u5DF2\u65AD\u5F00");
+      if (mode === "race" && netRace) {
+        for (const o of race.opponents) if (o.remote) race.takeover(o.id);
+        netRace = false;
+        hud.toast("\u7F51\u7EDC\u65AD\u5F00 \xB7 \u5BF9\u624B\u8F6C\u4E3A AI \u6258\u7BA1", 2600);
+      }
+    }
+  }
+  function closeLobby() {
+    lobbyEl.screen.classList.remove("visible");
+  }
+  async function doCreate() {
+    const name = (lobbyEl.name.value || "").trim().slice(0, 8) || "\u73A9\u5BB6";
+    localStorage.setItem("sr-name", name);
+    lobbyStatus("\u6B63\u5728\u8FDE\u63A5\u8054\u673A\u670D\u52A1\u5668\u2026");
+    const n = new Net();
+    n.onEvent = onNetEvent;
+    try {
+      await n.create(name);
+      net = n;
+      lobbyEl.setup.classList.add("off");
+      lobbyEl.room.classList.add("on");
+      renderLobby();
+      lobbyStatus("");
+    } catch (e) {
+      n.leave();
+      lobbyStatus(e.message || "\u8FDE\u63A5\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5");
+    }
+  }
+  async function doJoin() {
+    const name = (lobbyEl.name.value || "").trim().slice(0, 8) || "\u73A9\u5BB6";
+    const code = (lobbyEl.codeIn.value || "").trim().toUpperCase();
+    if (code.length !== 6) {
+      lobbyStatus("\u623F\u95F4\u7801\u662F 6 \u4F4D");
+      return;
+    }
+    localStorage.setItem("sr-name", name);
+    lobbyStatus("\u6B63\u5728\u52A0\u5165\u2026");
+    const n = new Net();
+    n.onEvent = onNetEvent;
+    try {
+      await n.join(code, name);
+      net = n;
+      lobbyEl.setup.classList.add("off");
+      lobbyEl.room.classList.add("on");
+      renderLobby();
+      lobbyStatus("");
+    } catch (e) {
+      n.leave();
+      lobbyStatus(e.message || "\u52A0\u5165\u5931\u8D25");
+    }
+  }
   function bindUI(id, fn) {
     const el = document.getElementById(id);
     el.addEventListener("click", () => {
@@ -24813,6 +25785,46 @@ void main() {
   }
   bindUI("startBtn", startGame);
   bindUI("startRaceBtn", () => startRace());
+  bindUI("onlineBtn", openLobby);
+  bindUI("createRoomBtn", doCreate);
+  bindUI("joinRoomBtn", doJoin);
+  bindUI("roomStartBtn", () => {
+    if (!net || !net.isHost) {
+      lobbyStatus("\u53EA\u6709\u623F\u4E3B\u80FD\u5F00\u59CB\u6BD4\u8D5B");
+      return;
+    }
+    net.startRace(3.4);
+    closeLobby();
+    netRace = true;
+    startRace(net.seed, { net: true, cd: 3.4 });
+  });
+  bindUI("roomLeaveBtn", () => {
+    if (net) net.leave();
+    net = null;
+    netRace = false;
+    lobbyEl.setup.classList.remove("off");
+    lobbyEl.room.classList.remove("on");
+    lobbyStatus("");
+  });
+  bindUI("lobbyBackBtn", () => {
+    if (net) net.leave();
+    net = null;
+    netRace = false;
+    closeLobby();
+    hud.showScreen("title");
+  });
+  window.addEventListener("keydown", (e) => {
+    const m = /^(?:Digit|Numpad)([1-3])$/.exec(e.code);
+    if (m) castAttack(+m[1]);
+  });
+  var skillBarEl = document.getElementById("skillBar");
+  if (skillBarEl) {
+    skillBarEl.addEventListener("click", () => {
+      if (!atkSkill || mode !== "race") return;
+      const mine = race.rows(player.pos.z).find((r) => r.me);
+      castAttack(mine && mine.place === 1 ? 2 : 1);
+    });
+  }
   bindUI("retryBtn", () => lastPlay === "race" ? startRace() : startGame());
   bindUI("homeBtn", backToTitle);
   bindUI("resumeBtn", resume);
@@ -24923,11 +25935,13 @@ void main() {
     const running = (mode === "run" || mode === "race" && raceState === "go") && player.alive;
     baseSpeed = Math.min(34, 12 + dist * 0.018);
     const diff = clamp2(dist / 1600, 0, 1);
-    speed = baseSpeed * (odT > 0 ? 1.5 : 1) * player.speedMul;
+    speed = baseSpeed * (odT > 0 ? 1.5 : 1) * player.speedMul * player.buffUp * player.buffDown;
     city.env = { speed: baseSpeed, diff };
     if (odCd > 0) odCd -= dt;
     if (running && actions.dash) {
-      if (energy >= 50 && odT <= 0 && odCd <= 0) {
+      if (player.noFuelT > 0) {
+        hud.toast("\u26A1 \u65AD\u7535\u4E2D \xB7 \u65E0\u6CD5\u8FC7\u8F7D", 1e3);
+      } else if (energy >= 50 && odT <= 0 && odCd <= 0) {
         odT = 4;
         odCd = 10;
         energy -= 50;
@@ -24966,7 +25980,7 @@ void main() {
     if (running) {
       streakT -= dt;
       if (streakT <= 0) streak = 0;
-      const radius = odT > 0 ? 4.2 : 1.6;
+      const radius = odT > 0 ? 4.2 : player.magnetT > 0 ? 4 : 1.6;
       for (const c of city.coinsNear(player.pos.z, radius + 3)) {
         const dx = c.x - player.pos.x;
         const dy = c.y - (player.pos.y + 1);
@@ -25008,11 +26022,30 @@ void main() {
     fx.update(dt);
     audio.setWind(clamp2((speed - 10) / 26, 0, 1) + (odT > 0 ? 0.15 : 0));
     if (mode === "race") {
+      const box = powerups.update(dt, player);
+      if (box && running) pickupSkill(box);
       race.update(running ? dt : 0, player.pos.z);
+      if (netRace) {
+        for (const o of race.opponents) {
+          if (o.remote && Date.now() - o.lastSeen > 5e3) {
+            race.takeover(o.id);
+            hud.toast(`${o.name} \u6389\u7EBF \xB7 AI \u63A5\u7BA1`, 2200);
+          }
+        }
+      }
+      if (netRace && net && net.ready && running) {
+        netSendT += dt;
+        if (netSendT >= 0.1) {
+          netSendT = 0;
+          net.sendState(player.pos.z, player.pos.x, player.pos.y, player.buffDownT > 0 ? 1 : 0, player.noJumpT > 0 ? 1 : 0);
+        }
+      }
       if (raceState === "go" && player.pos.z >= RACE_LEN) finishRace();
       else hud.board(race.rows(player.pos.z), fmtTime(race.time));
     }
     hud.hit(player.hitFlash);
+    hud.buffs(buffList());
+    hud.blackout(player.noFuelT > 0 ? 0.8 : 0);
     player.applyCamera(stage.camera);
     if (shakeT > 0) {
       shakeT -= rawDt;
@@ -25050,8 +26083,18 @@ void main() {
     player,
     city,
     race,
+    powerups,
     daylight,
     stage,
+    get atkSkill() {
+      return atkSkill;
+    },
+    get net() {
+      return net;
+    },
+    get netRace() {
+      return netRace;
+    },
     get raceState() {
       return raceState;
     },
@@ -25075,6 +26118,18 @@ void main() {
       setDist: (v) => {
         dist = v;
         daylight.update(v);
+      },
+      giveSkill: (k) => pickupSkill({ skill: k, x: player.pos.x, y: player.pos.y + 1, z: player.pos.z }),
+      cast: (place) => castAttack(place),
+      hitBy: (kind, from) => hitBy(kind, from),
+      toBox: (i) => {
+        const b = powerups.boxes[i];
+        if (!b) return null;
+        player.pos.set(b.x || 0, b.y, b.z);
+        player.prevY = b.y;
+        player.vy = 0;
+        player.grounded = true;
+        return { z: b.z, skill: b.skill };
       }
     }
   };
