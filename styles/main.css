@@ -157,3 +157,57 @@ h1 { font-size: 58px; font-weight: 900; letter-spacing: 10px; background: linear
   #rotateHint.show { display: flex; }
 }
 #rotateHint b { font-size: 34px; }
+
+/* ---- 竞速模式：名次表 / 倒计时 / 受击红边 ---- */
+.race-board {
+  position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%);
+  z-index: 12; width: 196px; padding: 9px 11px 10px;
+  border-radius: 12px; border: 1px solid rgba(255, 215, 170, 0.15);
+  background: rgba(14, 9, 6, 0.42);
+  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+}
+.race-board.on { opacity: 1; }
+.race-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; letter-spacing: 2px; opacity: 0.62;
+  padding-bottom: 5px; margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  font-variant-numeric: tabular-nums;
+}
+.race-head b { font-size: 13px; color: #ffd9a0; letter-spacing: 0; }
+.race-row {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; line-height: 1.9;
+}
+.race-row b { width: 11px; font-weight: 500; opacity: 0.5; font-variant-numeric: tabular-nums; }
+.race-row i {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--c); box-shadow: 0 0 7px var(--c);
+}
+.race-row span { flex: 1; opacity: 0.9; }
+.race-row em { font-style: normal; opacity: 0.55; font-variant-numeric: tabular-nums; }
+.race-row.me b, .race-row.me span { opacity: 1; }
+.race-row.me span { color: #9fe4ff; }
+
+.countdown {
+  position: absolute; inset: 0; z-index: 14; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 118px; font-weight: 800; letter-spacing: 6px;
+  color: #fff; text-shadow: 0 8px 44px rgba(0, 0, 0, 0.75), 0 0 60px rgba(255, 190, 120, 0.5);
+  opacity: 0; pointer-events: none; transition: opacity 0.14s;
+}
+.countdown.on { opacity: 0.96; }
+
+.hit-flash {
+  position: absolute; inset: 0; z-index: 9; pointer-events: none; opacity: 0;
+  transition: opacity 0.08s;
+  background: radial-gradient(ellipse at 50% 58%, rgba(255, 70, 40, 0) 38%, rgba(208, 40, 26, 0.72) 100%);
+}
+
+@media (max-width: 720px) {
+  .race-board { width: 160px; padding: 7px 9px 8px; }
+  .race-row { font-size: 11.5px; line-height: 1.75; }
+  .countdown { font-size: 76px; }
+}
