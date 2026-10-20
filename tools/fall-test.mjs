@@ -153,6 +153,30 @@ for (let i = 0; i < 2; i++) {
   B.push({ drop: JSON.parse(drop), last: await evaluate(`JSON.stringify(window.__falls.at(-1)||null)`) });
 }
 
+// 场景 C：幽灵领先 100m 时，玩家脚下的楼顶不允许被回收（曾经的"地板消失"bug）
+const C = await (async () => {
+  await evaluate(`(()=>{
+    const g = window.__game, p = g.player;
+    const seg = g.city.platformNear(p.pos.z + 4) || g.city.segments[1];
+    p.pos.set(seg.cx, seg.y, seg.z0 + 2);
+    p.prevY = seg.y; p.vy = 0; p.vx = 0;
+    p.grounded = true; p.lastGroundY = seg.y; p.lastGroundX = seg.cx; p.lastGroundZ = seg.z0 + 2;
+    window.__cSegZ1 = seg.z1;
+    for (const o of g.race.opponents) o.z = p.pos.z + 100; // 幽灵大幅领先
+    return 'ok';
+  })()`);
+  await sleep(2600); // 足够让旧逻辑按 maxZ-45 把这段拆掉
+  return await evaluate(
+    `JSON.stringify((()=>{
+      const g = window.__game, p = g.player;
+      const kept = g.city.segments.some(s => Math.abs(s.z1 - window.__cSegZ1) < 0.01); // 所站段未被回收
+      return { segZ1:+window.__cSegZ1.toFixed(1), maxZ:+g.race.maxZ().toFixed(1),
+        playerZ:+p.pos.z.toFixed(1), alive:p.alive, kept,
+        respawns:window.__falls.length }; // 复活次数应仍为 5（没有因地板消失引发坠落）
+    })())`
+  ).then((s) => JSON.parse(s || '{}'));
+})();
+
 const all = await evaluate(`JSON.stringify(window.__falls)`);
 const falls = JSON.parse(all || '[]');
 const state = await evaluate(
@@ -162,17 +186,20 @@ const state = await evaluate(
 
 console.log('A(掉进楼缝):', JSON.stringify(A));
 console.log('B(横向掉出):', JSON.stringify(B));
+console.log('C(幽灵领先100m):', JSON.stringify(C));
 console.log('全部复活记录:', all);
 console.log('当前状态:', state);
 
 // 判定：5 次坠落应恰好触发 5 次复活（没有额外循环），每次复活后都站在真实楼顶上，
-// 且落点不低于坠落前的 z（不能"原地升起"）
+// 且落点不低于坠落前的 z（不能"原地升起"）；场景 C 要求幽灵领先时脚下地板始终存在
 const ok =
   falls.length > 0 &&
   falls.length <= 6 &&
   falls.every((f) => f.grounded === true && f.alive === true && f.segY !== null) &&
   falls.every((f) => f.az >= f.bz - 0.5) &&
   falls.every((f, i) => i === 0 || f.bz >= falls[i - 1].az - 1) &&
+  C.kept === true &&
+  C.alive === true &&
   JSON.parse(state || '{}').alive === true &&
   errors.length === 0;
 
