@@ -21,6 +21,8 @@ const chrome = spawn(
     '--enable-unsafe-swiftshader',
     '--no-sandbox',
     '--hide-scrollbars',
+    '--no-proxy-server',
+    '--proxy-bypass-list=*',
     '--window-size=1600,900',
     `--user-data-dir=${path.join(ROOT, '.tmp-race')}`,
     'about:blank',
