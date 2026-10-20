@@ -5,4 +5,5 @@ node_modules/
 .tmp-profile2/
 .tmp-profile3/
 .tmp-dayshot/
-.tmp-dayshot/
+.tmp-race/
+.tmp-fall/
