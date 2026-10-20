@@ -59,6 +59,8 @@
 - **实时软阴影**：PCFSoft 阴影贴图跟随玩家移动，障碍物在夕阳下拉出长影；
 - **程序化天空**：自定义 shader 绘制天顶→地平线的色带、太阳盘面与两层光晕；
 - **竞速模式**：2200 米固定赛道、三人同跑（你 + 两个幽灵对手），撞障碍/掉下楼只扣速度不清零，实时名次表 + 3-2-1 起跑倒计时，第一个冲过终点线获胜；
+- **技能盲盒**：赛道上每 200 米一个发光盲盒（内容由赛道种子决定，联机时人人一致）——自用的疾风/护盾/磁力拾取即生效，攻击用的逆风/断电/锁跳按 `1/2/3` 对名次表上的对手释放；
+- **联机竞速**：手写 MQTT over WebSocket（零依赖，公共 broker），6 位房间码、上限 3 人，位置 10Hz 同步 + 阻尼插值；好友掉线自动由 AI 接管继续跑完，比赛不散场；
 - **日光推进**：每跑 400 米，太阳压低一档、雾色转深——黄昏 → 落日贴地 → 紫红余晖 → 1200 米后的蓝调霓虹，窗光渐亮、辉光渐强，全程只改视觉不碰物理；
 - **GPU 雨丝**：520 条雨全部在顶点着色器里下落（零 CPU 开销），随镜头移动循环；
 - **后期管线**：UnrealBloom 辉光 + ACES Filmic 色调映射 + 暗角/颗粒/过载速度线；
@@ -152,6 +154,8 @@ Touch devices: slide left/right to steer, swipe up (or tap) to jump, drag down a
 - **PCFSoft real-time shadows** that follow the player, with long sunset shadows from obstacles;
 - A custom sky shader (zenith-to-horizon gradient, sun disc, dual glow);
 - **Race mode**: a 2200 m fixed track raced by three runners (you + two ghost rivals) — crashing or falling costs speed instead of the run, with a live leaderboard, a 3-2-1 countdown and a finish line;
+- **Skill crates**: a glowing crate every 200 m, its contents decided by the track seed (identical for everyone in an online room) — self buffs (Gale / Shield / Magnet) trigger on pickup, attack skills (Headwind / Blackout / Lock-jump) are fired at leaderboard rivals with `1/2/3`;
+- **Online racing**: a hand-written MQTT-over-WebSocket client (zero dependencies, public broker), 6-digit room codes, up to 3 runners, 10 Hz position sync with damping interpolation; a dropped friend is seamlessly taken over by AI so the race never falls apart;
 - **Daylight progression**: every 400 m the sun drops another notch and the palette deepens — golden hour → sun-on-the-horizon → magenta afterglow → blue-hour neon past 1200 m, with windows brightening and bloom swelling. Pure visuals, physics untouched;
 - **520 GPU rain streaks** falling entirely in the vertex shader;
 - UnrealBloom + ACES Filmic tone mapping + vignette/grain/overdrive speed-lines;
