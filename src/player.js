@@ -37,6 +37,14 @@ export class Player {
     this.prevY = 10;
     this.glideT = 0; // 过载结束后的缓降余量
     this._odPrev = false;
+    // ---- 竞速模式：撞/掉都只扣速度，不结束游戏 ----
+    this.raceMode = false;
+    this.speedMul = 1;
+    this.speedMulT = 0;
+    this.invulnT = 0;
+    this.hitFlash = 0;
+    this.lastGroundX = 0;
+    this.lastGroundZ = 0;
     this._v = new THREE.Vector3();
   }
 
@@ -57,6 +65,12 @@ export class Player {
     this.prevY = 10;
     this.glideT = 0;
     this._odPrev = false;
+    this.speedMul = 1;
+    this.speedMulT = 0;
+    this.invulnT = 0;
+    this.hitFlash = 0;
+    this.lastGroundX = 0;
+    this.lastGroundZ = 0;
   }
 
   get height() {
@@ -80,6 +94,14 @@ export class Player {
 
     // 前进
     this.pos.z += speed * dt;
+
+    // 惩罚计时（竞速模式）
+    if (this.speedMulT > 0) {
+      this.speedMulT -= dt;
+      if (this.speedMulT <= 0) this.speedMul = 1;
+    }
+    if (this.invulnT > 0) this.invulnT -= dt;
+    this.hitFlash = damp(this.hitFlash, 0, 5, dt);
 
     // 过载刚结束且人在空中 → 进入缓降余量：冲刺恰好停在楼缝上空时不会直接坠楼
     if (this._odPrev && !overdrive && !this.grounded) this.glideT = 2.0;
@@ -185,6 +207,8 @@ export class Player {
       this.vy = 0;
       this.grounded = true;
       this.lastGroundY = groundY;
+      this.lastGroundX = this.pos.x;
+      this.lastGroundZ = this.pos.z;
       this.coyote = 0.11;
       this.glideT = 0; // 落地即结束缓降，避免影响后续跳跃
     } else if (this.grounded && (groundY === null || this.pos.y > groundY + 0.05)) {
@@ -196,7 +220,7 @@ export class Player {
     this.prevY = this.pos.y;
 
     // ---- 障碍碰撞（过载与缓降余量期间视为飞行，不会撞死）----
-    if (!overdrive && this.glideT <= 0) {
+    if (!overdrive && this.glideT <= 0 && this.invulnT <= 0) {
       const top = this.pos.y + this.height;
       for (const o of city.obstaclesNear(this.pos.z, 1.5)) {
         if (
@@ -211,7 +235,8 @@ export class Player {
             o: { kind: o.kind, x0: o.x0, x1: o.x1, y0: o.y0, y1: o.y1, z0: o.z0, z1: o.z1 },
             dist: window.__game ? Math.round(window.__game.dist) : -1,
           };
-          this.die('crash');
+          if (this.raceMode) this.hit(o);
+          else this.die('crash');
           break;
         }
       }
@@ -219,7 +244,8 @@ export class Player {
 
     // ---- 坠楼（过载滑翔 / 结束后的缓降期间不会坠楼）----
     if (!seg && this.alive && !overdrive && this.glideT <= 0 && this.pos.y < this.lastGroundY - 9) {
-      this.die('fall');
+      if (this.raceMode) this.respawn(city);
+      else this.die('fall');
     }
 
     // ---- 脚步声与镜头晃动 ----
@@ -234,6 +260,47 @@ export class Player {
     }
     this.landKick = damp(this.landKick, 0, 6, dt);
     this.roll = damp(this.roll, -this.vx * 0.012, 8, dt);
+  }
+
+  // 竞速模式：撞上障碍不是终点，而是掉一大截速度（并短暂无敌，避免卡在箱子里连撞）
+  hit(o) {
+    if (this.invulnT > 0) return;
+    this.invulnT = 0.85;
+    this.speedMul = 0.5;
+    this.speedMulT = 1.15;
+    this.hitFlash = 1;
+    this.sliding = false;
+    this.audio.crash();
+    this.fx.burst(this._v.set(this.pos.x, this.pos.y + 1.1, this.pos.z), 0xff8a4d, {
+      count: 22, speed: 5, up: 3, life: 0.7, spread: 0.9,
+    });
+  }
+
+  // 竞速模式：掉下楼不判负，拉回掉下去的那块楼顶，扣速度继续跑
+  respawn(city) {
+    let z = this.lastGroundZ - 2;
+    let seg = city.platformAt(this.lastGroundX, z) || city.platformNear(z);
+    if (!seg) {
+      z = this.pos.z;
+      seg = city.platformNear(z);
+    }
+    if (!seg) {
+      this.die('fall'); // 兜底：地图真的断了才按坠楼处理
+      return;
+    }
+    const x = clamp(this.lastGroundX, seg.cx - seg.w / 2 + 0.5, seg.cx + seg.w / 2 - 0.5);
+    const zz = clamp(z, seg.z0 + 0.8, seg.z1 - 0.8);
+    this.pos.set(x, seg.y + 0.6, zz);
+    this.prevY = this.pos.y;
+    this.vy = 0;
+    this.vx = 0;
+    this.grounded = false;
+    this.glideT = 0;
+    this.speedMul = 0.55;
+    this.speedMulT = 1.2;
+    this.hitFlash = 0.8;
+    this.invulnT = 0.6;
+    this.audio.fall();
   }
 
   die(type) {
