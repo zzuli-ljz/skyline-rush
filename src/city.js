@@ -452,6 +452,42 @@ export class City {
     return best;
   }
 
+  // 竞速复活点：优先把玩家送到"前方最近的一块楼顶"，而不是原地升起。
+  // 原地升起会形成死循环：落回原处 → 又踩空 → 再升起，玩家看起来一直在原地往上弹。
+  respawnPoint(x, z, reach = 60) {
+    const nearest = (list) => {
+      let best = null;
+      for (const s of list) if (!best || s.z0 < best.z0) best = s;
+      return best;
+    };
+    const fit = []; // 前方且横向够得着
+    const any = []; // 前方但需要横向挪一下
+    for (const s of this.segments) {
+      if (s.z0 < z - 1 || s.z0 > z + reach) continue; // 只要正前方的段
+      any.push(s);
+      const half = s.w / 2;
+      if (x >= s.cx - half + 0.5 && x <= s.cx + half - 0.5) fit.push(s);
+    }
+    let seg = nearest(fit) || nearest(any);
+    // 前方 60m 全是空（地图断裂 / 终点之后）→ 退回当前 z 所在的一段
+    if (!seg) seg = this.platformNear(z);
+    if (!seg) {
+      for (const s of this.segments) if (s.z1 >= z - 1 && (!seg || s.z1 > seg.z1)) seg = s;
+    }
+    if (!seg) return null;
+    const half = seg.w / 2;
+    const loX = seg.cx - half + 0.45;
+    const hiX = seg.cx + half - 0.45;
+    const loZ = seg.z0 + 1.2;
+    const hiZ = seg.z1 - 0.6;
+    return {
+      seg,
+      x: hiX > loX ? clamp(x, loX, hiX) : seg.cx,
+      y: seg.y,
+      z: hiZ > loZ ? clamp(Math.max(z, loZ), loZ, hiZ) : (seg.z0 + seg.z1) / 2,
+    };
+  }
+
   obstaclesNear(z, range = 2) {
     const out = [];
     for (const s of this.segments) {
