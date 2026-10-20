@@ -665,17 +665,17 @@
       return this;
     }
     transpose() {
-      let tmp;
+      let tmp2;
       const m = this.elements;
-      tmp = m[1];
+      tmp2 = m[1];
       m[1] = m[3];
-      m[3] = tmp;
-      tmp = m[2];
+      m[3] = tmp2;
+      tmp2 = m[2];
       m[2] = m[6];
-      m[6] = tmp;
-      tmp = m[5];
+      m[6] = tmp2;
+      tmp2 = m[5];
       m[5] = m[7];
-      m[7] = tmp;
+      m[7] = tmp2;
       return this;
     }
     getNormalMatrix(matrix4) {
@@ -3600,25 +3600,25 @@
     }
     transpose() {
       const te = this.elements;
-      let tmp;
-      tmp = te[1];
+      let tmp2;
+      tmp2 = te[1];
       te[1] = te[4];
-      te[4] = tmp;
-      tmp = te[2];
+      te[4] = tmp2;
+      tmp2 = te[2];
       te[2] = te[8];
-      te[8] = tmp;
-      tmp = te[6];
+      te[8] = tmp2;
+      tmp2 = te[6];
       te[6] = te[9];
-      te[9] = tmp;
-      tmp = te[3];
+      te[9] = tmp2;
+      tmp2 = te[3];
       te[3] = te[12];
-      te[12] = tmp;
-      tmp = te[7];
+      te[12] = tmp2;
+      tmp2 = te[7];
       te[7] = te[13];
-      te[13] = tmp;
-      tmp = te[11];
+      te[13] = tmp2;
+      tmp2 = te[11];
       te[11] = te[14];
-      te[14] = tmp;
+      te[14] = tmp2;
       return this;
     }
     setPosition(x, y, z) {
@@ -6356,18 +6356,18 @@
           );
         }
       }
-      const tmp = new Vector3(), tmp2 = new Vector3();
+      const tmp2 = new Vector3(), tmp22 = new Vector3();
       const n = new Vector3(), n2 = new Vector3();
       function handleVertex(v) {
         n.fromBufferAttribute(normalAttribute, v);
         n2.copy(n);
         const t = tan1[v];
-        tmp.copy(t);
-        tmp.sub(n.multiplyScalar(n.dot(t))).normalize();
-        tmp2.crossVectors(n2, t);
-        const test = tmp2.dot(tan2[v]);
+        tmp2.copy(t);
+        tmp2.sub(n.multiplyScalar(n.dot(t))).normalize();
+        tmp22.crossVectors(n2, t);
+        const test = tmp22.dot(tan2[v]);
         const w = test < 0 ? -1 : 1;
-        tangentAttribute.setXYZW(v, tmp.x, tmp.y, tmp.z, w);
+        tangentAttribute.setXYZW(v, tmp2.x, tmp2.y, tmp2.z, w);
       }
       for (let i = 0, il = groups.length; i < il; ++i) {
         const group = groups[i];
@@ -6942,9 +6942,9 @@
   function mergeUniforms(uniforms) {
     const merged = {};
     for (let u = 0; u < uniforms.length; u++) {
-      const tmp = cloneUniforms(uniforms[u]);
-      for (const p in tmp) {
-        merged[p] = tmp[p];
+      const tmp2 = cloneUniforms(uniforms[u]);
+      for (const p in tmp2) {
+        merged[p] = tmp2[p];
       }
     }
     return merged;
@@ -18163,6 +18163,410 @@ void main() {
       return data;
     }
   };
+  var InterleavedBuffer = class {
+    constructor(array, stride) {
+      this.isInterleavedBuffer = true;
+      this.array = array;
+      this.stride = stride;
+      this.count = array !== void 0 ? array.length / stride : 0;
+      this.usage = StaticDrawUsage;
+      this.updateRanges = [];
+      this.version = 0;
+      this.uuid = generateUUID();
+    }
+    onUploadCallback() {
+    }
+    set needsUpdate(value) {
+      if (value === true) this.version++;
+    }
+    setUsage(value) {
+      this.usage = value;
+      return this;
+    }
+    addUpdateRange(start, count) {
+      this.updateRanges.push({ start, count });
+    }
+    clearUpdateRanges() {
+      this.updateRanges.length = 0;
+    }
+    copy(source) {
+      this.array = new source.array.constructor(source.array);
+      this.count = source.count;
+      this.stride = source.stride;
+      this.usage = source.usage;
+      return this;
+    }
+    copyAt(index1, attribute, index2) {
+      index1 *= this.stride;
+      index2 *= attribute.stride;
+      for (let i = 0, l = this.stride; i < l; i++) {
+        this.array[index1 + i] = attribute.array[index2 + i];
+      }
+      return this;
+    }
+    set(value, offset = 0) {
+      this.array.set(value, offset);
+      return this;
+    }
+    clone(data) {
+      if (data.arrayBuffers === void 0) {
+        data.arrayBuffers = {};
+      }
+      if (this.array.buffer._uuid === void 0) {
+        this.array.buffer._uuid = generateUUID();
+      }
+      if (data.arrayBuffers[this.array.buffer._uuid] === void 0) {
+        data.arrayBuffers[this.array.buffer._uuid] = this.array.slice(0).buffer;
+      }
+      const array = new this.array.constructor(data.arrayBuffers[this.array.buffer._uuid]);
+      const ib = new this.constructor(array, this.stride);
+      ib.setUsage(this.usage);
+      return ib;
+    }
+    onUpload(callback) {
+      this.onUploadCallback = callback;
+      return this;
+    }
+    toJSON(data) {
+      if (data.arrayBuffers === void 0) {
+        data.arrayBuffers = {};
+      }
+      if (this.array.buffer._uuid === void 0) {
+        this.array.buffer._uuid = generateUUID();
+      }
+      if (data.arrayBuffers[this.array.buffer._uuid] === void 0) {
+        data.arrayBuffers[this.array.buffer._uuid] = Array.from(new Uint32Array(this.array.buffer));
+      }
+      return {
+        uuid: this.uuid,
+        buffer: this.array.buffer._uuid,
+        type: this.array.constructor.name,
+        stride: this.stride
+      };
+    }
+  };
+  var _vector$6 = /* @__PURE__ */ new Vector3();
+  var InterleavedBufferAttribute = class _InterleavedBufferAttribute {
+    constructor(interleavedBuffer, itemSize, offset, normalized = false) {
+      this.isInterleavedBufferAttribute = true;
+      this.name = "";
+      this.data = interleavedBuffer;
+      this.itemSize = itemSize;
+      this.offset = offset;
+      this.normalized = normalized;
+    }
+    get count() {
+      return this.data.count;
+    }
+    get array() {
+      return this.data.array;
+    }
+    set needsUpdate(value) {
+      this.data.needsUpdate = value;
+    }
+    applyMatrix4(m) {
+      for (let i = 0, l = this.data.count; i < l; i++) {
+        _vector$6.fromBufferAttribute(this, i);
+        _vector$6.applyMatrix4(m);
+        this.setXYZ(i, _vector$6.x, _vector$6.y, _vector$6.z);
+      }
+      return this;
+    }
+    applyNormalMatrix(m) {
+      for (let i = 0, l = this.count; i < l; i++) {
+        _vector$6.fromBufferAttribute(this, i);
+        _vector$6.applyNormalMatrix(m);
+        this.setXYZ(i, _vector$6.x, _vector$6.y, _vector$6.z);
+      }
+      return this;
+    }
+    transformDirection(m) {
+      for (let i = 0, l = this.count; i < l; i++) {
+        _vector$6.fromBufferAttribute(this, i);
+        _vector$6.transformDirection(m);
+        this.setXYZ(i, _vector$6.x, _vector$6.y, _vector$6.z);
+      }
+      return this;
+    }
+    getComponent(index, component) {
+      let value = this.array[index * this.data.stride + this.offset + component];
+      if (this.normalized) value = denormalize(value, this.array);
+      return value;
+    }
+    setComponent(index, component, value) {
+      if (this.normalized) value = normalize(value, this.array);
+      this.data.array[index * this.data.stride + this.offset + component] = value;
+      return this;
+    }
+    setX(index, x) {
+      if (this.normalized) x = normalize(x, this.array);
+      this.data.array[index * this.data.stride + this.offset] = x;
+      return this;
+    }
+    setY(index, y) {
+      if (this.normalized) y = normalize(y, this.array);
+      this.data.array[index * this.data.stride + this.offset + 1] = y;
+      return this;
+    }
+    setZ(index, z) {
+      if (this.normalized) z = normalize(z, this.array);
+      this.data.array[index * this.data.stride + this.offset + 2] = z;
+      return this;
+    }
+    setW(index, w) {
+      if (this.normalized) w = normalize(w, this.array);
+      this.data.array[index * this.data.stride + this.offset + 3] = w;
+      return this;
+    }
+    getX(index) {
+      let x = this.data.array[index * this.data.stride + this.offset];
+      if (this.normalized) x = denormalize(x, this.array);
+      return x;
+    }
+    getY(index) {
+      let y = this.data.array[index * this.data.stride + this.offset + 1];
+      if (this.normalized) y = denormalize(y, this.array);
+      return y;
+    }
+    getZ(index) {
+      let z = this.data.array[index * this.data.stride + this.offset + 2];
+      if (this.normalized) z = denormalize(z, this.array);
+      return z;
+    }
+    getW(index) {
+      let w = this.data.array[index * this.data.stride + this.offset + 3];
+      if (this.normalized) w = denormalize(w, this.array);
+      return w;
+    }
+    setXY(index, x, y) {
+      index = index * this.data.stride + this.offset;
+      if (this.normalized) {
+        x = normalize(x, this.array);
+        y = normalize(y, this.array);
+      }
+      this.data.array[index + 0] = x;
+      this.data.array[index + 1] = y;
+      return this;
+    }
+    setXYZ(index, x, y, z) {
+      index = index * this.data.stride + this.offset;
+      if (this.normalized) {
+        x = normalize(x, this.array);
+        y = normalize(y, this.array);
+        z = normalize(z, this.array);
+      }
+      this.data.array[index + 0] = x;
+      this.data.array[index + 1] = y;
+      this.data.array[index + 2] = z;
+      return this;
+    }
+    setXYZW(index, x, y, z, w) {
+      index = index * this.data.stride + this.offset;
+      if (this.normalized) {
+        x = normalize(x, this.array);
+        y = normalize(y, this.array);
+        z = normalize(z, this.array);
+        w = normalize(w, this.array);
+      }
+      this.data.array[index + 0] = x;
+      this.data.array[index + 1] = y;
+      this.data.array[index + 2] = z;
+      this.data.array[index + 3] = w;
+      return this;
+    }
+    clone(data) {
+      if (data === void 0) {
+        console.log("THREE.InterleavedBufferAttribute.clone(): Cloning an interleaved buffer attribute will de-interleave buffer data.");
+        const array = [];
+        for (let i = 0; i < this.count; i++) {
+          const index = i * this.data.stride + this.offset;
+          for (let j = 0; j < this.itemSize; j++) {
+            array.push(this.data.array[index + j]);
+          }
+        }
+        return new BufferAttribute(new this.array.constructor(array), this.itemSize, this.normalized);
+      } else {
+        if (data.interleavedBuffers === void 0) {
+          data.interleavedBuffers = {};
+        }
+        if (data.interleavedBuffers[this.data.uuid] === void 0) {
+          data.interleavedBuffers[this.data.uuid] = this.data.clone(data);
+        }
+        return new _InterleavedBufferAttribute(data.interleavedBuffers[this.data.uuid], this.itemSize, this.offset, this.normalized);
+      }
+    }
+    toJSON(data) {
+      if (data === void 0) {
+        console.log("THREE.InterleavedBufferAttribute.toJSON(): Serializing an interleaved buffer attribute will de-interleave buffer data.");
+        const array = [];
+        for (let i = 0; i < this.count; i++) {
+          const index = i * this.data.stride + this.offset;
+          for (let j = 0; j < this.itemSize; j++) {
+            array.push(this.data.array[index + j]);
+          }
+        }
+        return {
+          itemSize: this.itemSize,
+          type: this.array.constructor.name,
+          array,
+          normalized: this.normalized
+        };
+      } else {
+        if (data.interleavedBuffers === void 0) {
+          data.interleavedBuffers = {};
+        }
+        if (data.interleavedBuffers[this.data.uuid] === void 0) {
+          data.interleavedBuffers[this.data.uuid] = this.data.toJSON(data);
+        }
+        return {
+          isInterleavedBufferAttribute: true,
+          itemSize: this.itemSize,
+          data: this.data.uuid,
+          offset: this.offset,
+          normalized: this.normalized
+        };
+      }
+    }
+  };
+  var SpriteMaterial = class extends Material {
+    constructor(parameters) {
+      super();
+      this.isSpriteMaterial = true;
+      this.type = "SpriteMaterial";
+      this.color = new Color(16777215);
+      this.map = null;
+      this.alphaMap = null;
+      this.rotation = 0;
+      this.sizeAttenuation = true;
+      this.transparent = true;
+      this.fog = true;
+      this.setValues(parameters);
+    }
+    copy(source) {
+      super.copy(source);
+      this.color.copy(source.color);
+      this.map = source.map;
+      this.alphaMap = source.alphaMap;
+      this.rotation = source.rotation;
+      this.sizeAttenuation = source.sizeAttenuation;
+      this.fog = source.fog;
+      return this;
+    }
+  };
+  var _geometry;
+  var _intersectPoint = /* @__PURE__ */ new Vector3();
+  var _worldScale = /* @__PURE__ */ new Vector3();
+  var _mvPosition = /* @__PURE__ */ new Vector3();
+  var _alignedPosition = /* @__PURE__ */ new Vector2();
+  var _rotatedPosition = /* @__PURE__ */ new Vector2();
+  var _viewWorldMatrix = /* @__PURE__ */ new Matrix4();
+  var _vA = /* @__PURE__ */ new Vector3();
+  var _vB = /* @__PURE__ */ new Vector3();
+  var _vC = /* @__PURE__ */ new Vector3();
+  var _uvA = /* @__PURE__ */ new Vector2();
+  var _uvB = /* @__PURE__ */ new Vector2();
+  var _uvC = /* @__PURE__ */ new Vector2();
+  var Sprite = class extends Object3D {
+    constructor(material = new SpriteMaterial()) {
+      super();
+      this.isSprite = true;
+      this.type = "Sprite";
+      if (_geometry === void 0) {
+        _geometry = new BufferGeometry();
+        const float32Array = new Float32Array([
+          -0.5,
+          -0.5,
+          0,
+          0,
+          0,
+          0.5,
+          -0.5,
+          0,
+          1,
+          0,
+          0.5,
+          0.5,
+          0,
+          1,
+          1,
+          -0.5,
+          0.5,
+          0,
+          0,
+          1
+        ]);
+        const interleavedBuffer = new InterleavedBuffer(float32Array, 5);
+        _geometry.setIndex([0, 1, 2, 0, 2, 3]);
+        _geometry.setAttribute("position", new InterleavedBufferAttribute(interleavedBuffer, 3, 0, false));
+        _geometry.setAttribute("uv", new InterleavedBufferAttribute(interleavedBuffer, 2, 3, false));
+      }
+      this.geometry = _geometry;
+      this.material = material;
+      this.center = new Vector2(0.5, 0.5);
+    }
+    raycast(raycaster, intersects) {
+      if (raycaster.camera === null) {
+        console.error('THREE.Sprite: "Raycaster.camera" needs to be set in order to raycast against sprites.');
+      }
+      _worldScale.setFromMatrixScale(this.matrixWorld);
+      _viewWorldMatrix.copy(raycaster.camera.matrixWorld);
+      this.modelViewMatrix.multiplyMatrices(raycaster.camera.matrixWorldInverse, this.matrixWorld);
+      _mvPosition.setFromMatrixPosition(this.modelViewMatrix);
+      if (raycaster.camera.isPerspectiveCamera && this.material.sizeAttenuation === false) {
+        _worldScale.multiplyScalar(-_mvPosition.z);
+      }
+      const rotation = this.material.rotation;
+      let sin, cos;
+      if (rotation !== 0) {
+        cos = Math.cos(rotation);
+        sin = Math.sin(rotation);
+      }
+      const center = this.center;
+      transformVertex(_vA.set(-0.5, -0.5, 0), _mvPosition, center, _worldScale, sin, cos);
+      transformVertex(_vB.set(0.5, -0.5, 0), _mvPosition, center, _worldScale, sin, cos);
+      transformVertex(_vC.set(0.5, 0.5, 0), _mvPosition, center, _worldScale, sin, cos);
+      _uvA.set(0, 0);
+      _uvB.set(1, 0);
+      _uvC.set(1, 1);
+      let intersect = raycaster.ray.intersectTriangle(_vA, _vB, _vC, false, _intersectPoint);
+      if (intersect === null) {
+        transformVertex(_vB.set(-0.5, 0.5, 0), _mvPosition, center, _worldScale, sin, cos);
+        _uvB.set(0, 1);
+        intersect = raycaster.ray.intersectTriangle(_vA, _vC, _vB, false, _intersectPoint);
+        if (intersect === null) {
+          return;
+        }
+      }
+      const distance = raycaster.ray.origin.distanceTo(_intersectPoint);
+      if (distance < raycaster.near || distance > raycaster.far) return;
+      intersects.push({
+        distance,
+        point: _intersectPoint.clone(),
+        uv: Triangle.getInterpolation(_intersectPoint, _vA, _vB, _vC, _uvA, _uvB, _uvC, new Vector2()),
+        face: null,
+        object: this
+      });
+    }
+    copy(source, recursive) {
+      super.copy(source, recursive);
+      if (source.center !== void 0) this.center.copy(source.center);
+      this.material = source.material;
+      return this;
+    }
+  };
+  function transformVertex(vertexPosition, mvPosition, center, scale, sin, cos) {
+    _alignedPosition.subVectors(vertexPosition, center).addScalar(0.5).multiply(scale);
+    if (sin !== void 0) {
+      _rotatedPosition.x = cos * _alignedPosition.x - sin * _alignedPosition.y;
+      _rotatedPosition.y = sin * _alignedPosition.x + cos * _alignedPosition.y;
+    } else {
+      _rotatedPosition.copy(_alignedPosition);
+    }
+    vertexPosition.copy(mvPosition);
+    vertexPosition.x += _rotatedPosition.x;
+    vertexPosition.y += _rotatedPosition.y;
+    vertexPosition.applyMatrix4(_viewWorldMatrix);
+  }
   var DataTexture = class extends Texture {
     constructor(data = null, width = 1, height = 1, format, type, mapping, wrapS, wrapT, magFilter = NearestFilter, minFilter = NearestFilter, anisotropy, colorSpace) {
       super(null, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy, colorSpace);
@@ -18633,6 +19037,1142 @@ void main() {
       this.needsUpdate = true;
     }
   };
+  var Curve = class {
+    constructor() {
+      this.type = "Curve";
+      this.arcLengthDivisions = 200;
+    }
+    // Virtual base class method to overwrite and implement in subclasses
+    //	- t [0 .. 1]
+    getPoint() {
+      console.warn("THREE.Curve: .getPoint() not implemented.");
+      return null;
+    }
+    // Get point at relative position in curve according to arc length
+    // - u [0 .. 1]
+    getPointAt(u, optionalTarget) {
+      const t = this.getUtoTmapping(u);
+      return this.getPoint(t, optionalTarget);
+    }
+    // Get sequence of points using getPoint( t )
+    getPoints(divisions = 5) {
+      const points = [];
+      for (let d = 0; d <= divisions; d++) {
+        points.push(this.getPoint(d / divisions));
+      }
+      return points;
+    }
+    // Get sequence of points using getPointAt( u )
+    getSpacedPoints(divisions = 5) {
+      const points = [];
+      for (let d = 0; d <= divisions; d++) {
+        points.push(this.getPointAt(d / divisions));
+      }
+      return points;
+    }
+    // Get total curve arc length
+    getLength() {
+      const lengths = this.getLengths();
+      return lengths[lengths.length - 1];
+    }
+    // Get list of cumulative segment lengths
+    getLengths(divisions = this.arcLengthDivisions) {
+      if (this.cacheArcLengths && this.cacheArcLengths.length === divisions + 1 && !this.needsUpdate) {
+        return this.cacheArcLengths;
+      }
+      this.needsUpdate = false;
+      const cache = [];
+      let current, last = this.getPoint(0);
+      let sum = 0;
+      cache.push(0);
+      for (let p = 1; p <= divisions; p++) {
+        current = this.getPoint(p / divisions);
+        sum += current.distanceTo(last);
+        cache.push(sum);
+        last = current;
+      }
+      this.cacheArcLengths = cache;
+      return cache;
+    }
+    updateArcLengths() {
+      this.needsUpdate = true;
+      this.getLengths();
+    }
+    // Given u ( 0 .. 1 ), get a t to find p. This gives you points which are equidistant
+    getUtoTmapping(u, distance) {
+      const arcLengths = this.getLengths();
+      let i = 0;
+      const il = arcLengths.length;
+      let targetArcLength;
+      if (distance) {
+        targetArcLength = distance;
+      } else {
+        targetArcLength = u * arcLengths[il - 1];
+      }
+      let low = 0, high = il - 1, comparison;
+      while (low <= high) {
+        i = Math.floor(low + (high - low) / 2);
+        comparison = arcLengths[i] - targetArcLength;
+        if (comparison < 0) {
+          low = i + 1;
+        } else if (comparison > 0) {
+          high = i - 1;
+        } else {
+          high = i;
+          break;
+        }
+      }
+      i = high;
+      if (arcLengths[i] === targetArcLength) {
+        return i / (il - 1);
+      }
+      const lengthBefore = arcLengths[i];
+      const lengthAfter = arcLengths[i + 1];
+      const segmentLength = lengthAfter - lengthBefore;
+      const segmentFraction = (targetArcLength - lengthBefore) / segmentLength;
+      const t = (i + segmentFraction) / (il - 1);
+      return t;
+    }
+    // Returns a unit vector tangent at t
+    // In case any sub curve does not implement its tangent derivation,
+    // 2 points a small delta apart will be used to find its gradient
+    // which seems to give a reasonable approximation
+    getTangent(t, optionalTarget) {
+      const delta = 1e-4;
+      let t1 = t - delta;
+      let t2 = t + delta;
+      if (t1 < 0) t1 = 0;
+      if (t2 > 1) t2 = 1;
+      const pt1 = this.getPoint(t1);
+      const pt2 = this.getPoint(t2);
+      const tangent = optionalTarget || (pt1.isVector2 ? new Vector2() : new Vector3());
+      tangent.copy(pt2).sub(pt1).normalize();
+      return tangent;
+    }
+    getTangentAt(u, optionalTarget) {
+      const t = this.getUtoTmapping(u);
+      return this.getTangent(t, optionalTarget);
+    }
+    computeFrenetFrames(segments, closed) {
+      const normal = new Vector3();
+      const tangents = [];
+      const normals = [];
+      const binormals = [];
+      const vec = new Vector3();
+      const mat = new Matrix4();
+      for (let i = 0; i <= segments; i++) {
+        const u = i / segments;
+        tangents[i] = this.getTangentAt(u, new Vector3());
+      }
+      normals[0] = new Vector3();
+      binormals[0] = new Vector3();
+      let min = Number.MAX_VALUE;
+      const tx = Math.abs(tangents[0].x);
+      const ty = Math.abs(tangents[0].y);
+      const tz = Math.abs(tangents[0].z);
+      if (tx <= min) {
+        min = tx;
+        normal.set(1, 0, 0);
+      }
+      if (ty <= min) {
+        min = ty;
+        normal.set(0, 1, 0);
+      }
+      if (tz <= min) {
+        normal.set(0, 0, 1);
+      }
+      vec.crossVectors(tangents[0], normal).normalize();
+      normals[0].crossVectors(tangents[0], vec);
+      binormals[0].crossVectors(tangents[0], normals[0]);
+      for (let i = 1; i <= segments; i++) {
+        normals[i] = normals[i - 1].clone();
+        binormals[i] = binormals[i - 1].clone();
+        vec.crossVectors(tangents[i - 1], tangents[i]);
+        if (vec.length() > Number.EPSILON) {
+          vec.normalize();
+          const theta = Math.acos(clamp(tangents[i - 1].dot(tangents[i]), -1, 1));
+          normals[i].applyMatrix4(mat.makeRotationAxis(vec, theta));
+        }
+        binormals[i].crossVectors(tangents[i], normals[i]);
+      }
+      if (closed === true) {
+        let theta = Math.acos(clamp(normals[0].dot(normals[segments]), -1, 1));
+        theta /= segments;
+        if (tangents[0].dot(vec.crossVectors(normals[0], normals[segments])) > 0) {
+          theta = -theta;
+        }
+        for (let i = 1; i <= segments; i++) {
+          normals[i].applyMatrix4(mat.makeRotationAxis(tangents[i], theta * i));
+          binormals[i].crossVectors(tangents[i], normals[i]);
+        }
+      }
+      return {
+        tangents,
+        normals,
+        binormals
+      };
+    }
+    clone() {
+      return new this.constructor().copy(this);
+    }
+    copy(source) {
+      this.arcLengthDivisions = source.arcLengthDivisions;
+      return this;
+    }
+    toJSON() {
+      const data = {
+        metadata: {
+          version: 4.6,
+          type: "Curve",
+          generator: "Curve.toJSON"
+        }
+      };
+      data.arcLengthDivisions = this.arcLengthDivisions;
+      data.type = this.type;
+      return data;
+    }
+    fromJSON(json) {
+      this.arcLengthDivisions = json.arcLengthDivisions;
+      return this;
+    }
+  };
+  var EllipseCurve = class extends Curve {
+    constructor(aX = 0, aY = 0, xRadius = 1, yRadius = 1, aStartAngle = 0, aEndAngle = Math.PI * 2, aClockwise = false, aRotation = 0) {
+      super();
+      this.isEllipseCurve = true;
+      this.type = "EllipseCurve";
+      this.aX = aX;
+      this.aY = aY;
+      this.xRadius = xRadius;
+      this.yRadius = yRadius;
+      this.aStartAngle = aStartAngle;
+      this.aEndAngle = aEndAngle;
+      this.aClockwise = aClockwise;
+      this.aRotation = aRotation;
+    }
+    getPoint(t, optionalTarget = new Vector2()) {
+      const point = optionalTarget;
+      const twoPi = Math.PI * 2;
+      let deltaAngle = this.aEndAngle - this.aStartAngle;
+      const samePoints = Math.abs(deltaAngle) < Number.EPSILON;
+      while (deltaAngle < 0) deltaAngle += twoPi;
+      while (deltaAngle > twoPi) deltaAngle -= twoPi;
+      if (deltaAngle < Number.EPSILON) {
+        if (samePoints) {
+          deltaAngle = 0;
+        } else {
+          deltaAngle = twoPi;
+        }
+      }
+      if (this.aClockwise === true && !samePoints) {
+        if (deltaAngle === twoPi) {
+          deltaAngle = -twoPi;
+        } else {
+          deltaAngle = deltaAngle - twoPi;
+        }
+      }
+      const angle = this.aStartAngle + t * deltaAngle;
+      let x = this.aX + this.xRadius * Math.cos(angle);
+      let y = this.aY + this.yRadius * Math.sin(angle);
+      if (this.aRotation !== 0) {
+        const cos = Math.cos(this.aRotation);
+        const sin = Math.sin(this.aRotation);
+        const tx = x - this.aX;
+        const ty = y - this.aY;
+        x = tx * cos - ty * sin + this.aX;
+        y = tx * sin + ty * cos + this.aY;
+      }
+      return point.set(x, y);
+    }
+    copy(source) {
+      super.copy(source);
+      this.aX = source.aX;
+      this.aY = source.aY;
+      this.xRadius = source.xRadius;
+      this.yRadius = source.yRadius;
+      this.aStartAngle = source.aStartAngle;
+      this.aEndAngle = source.aEndAngle;
+      this.aClockwise = source.aClockwise;
+      this.aRotation = source.aRotation;
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.aX = this.aX;
+      data.aY = this.aY;
+      data.xRadius = this.xRadius;
+      data.yRadius = this.yRadius;
+      data.aStartAngle = this.aStartAngle;
+      data.aEndAngle = this.aEndAngle;
+      data.aClockwise = this.aClockwise;
+      data.aRotation = this.aRotation;
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.aX = json.aX;
+      this.aY = json.aY;
+      this.xRadius = json.xRadius;
+      this.yRadius = json.yRadius;
+      this.aStartAngle = json.aStartAngle;
+      this.aEndAngle = json.aEndAngle;
+      this.aClockwise = json.aClockwise;
+      this.aRotation = json.aRotation;
+      return this;
+    }
+  };
+  var ArcCurve = class extends EllipseCurve {
+    constructor(aX, aY, aRadius, aStartAngle, aEndAngle, aClockwise) {
+      super(aX, aY, aRadius, aRadius, aStartAngle, aEndAngle, aClockwise);
+      this.isArcCurve = true;
+      this.type = "ArcCurve";
+    }
+  };
+  function CubicPoly() {
+    let c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+    function init(x0, x1, t0, t1) {
+      c0 = x0;
+      c1 = t0;
+      c2 = -3 * x0 + 3 * x1 - 2 * t0 - t1;
+      c3 = 2 * x0 - 2 * x1 + t0 + t1;
+    }
+    return {
+      initCatmullRom: function(x0, x1, x2, x3, tension) {
+        init(x1, x2, tension * (x2 - x0), tension * (x3 - x1));
+      },
+      initNonuniformCatmullRom: function(x0, x1, x2, x3, dt0, dt1, dt2) {
+        let t1 = (x1 - x0) / dt0 - (x2 - x0) / (dt0 + dt1) + (x2 - x1) / dt1;
+        let t2 = (x2 - x1) / dt1 - (x3 - x1) / (dt1 + dt2) + (x3 - x2) / dt2;
+        t1 *= dt1;
+        t2 *= dt1;
+        init(x1, x2, t1, t2);
+      },
+      calc: function(t) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        return c0 + c1 * t + c2 * t2 + c3 * t3;
+      }
+    };
+  }
+  var tmp = /* @__PURE__ */ new Vector3();
+  var px = /* @__PURE__ */ new CubicPoly();
+  var py = /* @__PURE__ */ new CubicPoly();
+  var pz = /* @__PURE__ */ new CubicPoly();
+  var CatmullRomCurve3 = class extends Curve {
+    constructor(points = [], closed = false, curveType = "centripetal", tension = 0.5) {
+      super();
+      this.isCatmullRomCurve3 = true;
+      this.type = "CatmullRomCurve3";
+      this.points = points;
+      this.closed = closed;
+      this.curveType = curveType;
+      this.tension = tension;
+    }
+    getPoint(t, optionalTarget = new Vector3()) {
+      const point = optionalTarget;
+      const points = this.points;
+      const l = points.length;
+      const p = (l - (this.closed ? 0 : 1)) * t;
+      let intPoint = Math.floor(p);
+      let weight = p - intPoint;
+      if (this.closed) {
+        intPoint += intPoint > 0 ? 0 : (Math.floor(Math.abs(intPoint) / l) + 1) * l;
+      } else if (weight === 0 && intPoint === l - 1) {
+        intPoint = l - 2;
+        weight = 1;
+      }
+      let p0, p3;
+      if (this.closed || intPoint > 0) {
+        p0 = points[(intPoint - 1) % l];
+      } else {
+        tmp.subVectors(points[0], points[1]).add(points[0]);
+        p0 = tmp;
+      }
+      const p1 = points[intPoint % l];
+      const p2 = points[(intPoint + 1) % l];
+      if (this.closed || intPoint + 2 < l) {
+        p3 = points[(intPoint + 2) % l];
+      } else {
+        tmp.subVectors(points[l - 1], points[l - 2]).add(points[l - 1]);
+        p3 = tmp;
+      }
+      if (this.curveType === "centripetal" || this.curveType === "chordal") {
+        const pow = this.curveType === "chordal" ? 0.5 : 0.25;
+        let dt0 = Math.pow(p0.distanceToSquared(p1), pow);
+        let dt1 = Math.pow(p1.distanceToSquared(p2), pow);
+        let dt2 = Math.pow(p2.distanceToSquared(p3), pow);
+        if (dt1 < 1e-4) dt1 = 1;
+        if (dt0 < 1e-4) dt0 = dt1;
+        if (dt2 < 1e-4) dt2 = dt1;
+        px.initNonuniformCatmullRom(p0.x, p1.x, p2.x, p3.x, dt0, dt1, dt2);
+        py.initNonuniformCatmullRom(p0.y, p1.y, p2.y, p3.y, dt0, dt1, dt2);
+        pz.initNonuniformCatmullRom(p0.z, p1.z, p2.z, p3.z, dt0, dt1, dt2);
+      } else if (this.curveType === "catmullrom") {
+        px.initCatmullRom(p0.x, p1.x, p2.x, p3.x, this.tension);
+        py.initCatmullRom(p0.y, p1.y, p2.y, p3.y, this.tension);
+        pz.initCatmullRom(p0.z, p1.z, p2.z, p3.z, this.tension);
+      }
+      point.set(
+        px.calc(weight),
+        py.calc(weight),
+        pz.calc(weight)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.points = [];
+      for (let i = 0, l = source.points.length; i < l; i++) {
+        const point = source.points[i];
+        this.points.push(point.clone());
+      }
+      this.closed = source.closed;
+      this.curveType = source.curveType;
+      this.tension = source.tension;
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.points = [];
+      for (let i = 0, l = this.points.length; i < l; i++) {
+        const point = this.points[i];
+        data.points.push(point.toArray());
+      }
+      data.closed = this.closed;
+      data.curveType = this.curveType;
+      data.tension = this.tension;
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.points = [];
+      for (let i = 0, l = json.points.length; i < l; i++) {
+        const point = json.points[i];
+        this.points.push(new Vector3().fromArray(point));
+      }
+      this.closed = json.closed;
+      this.curveType = json.curveType;
+      this.tension = json.tension;
+      return this;
+    }
+  };
+  function CatmullRom(t, p0, p1, p2, p3) {
+    const v0 = (p2 - p0) * 0.5;
+    const v1 = (p3 - p1) * 0.5;
+    const t2 = t * t;
+    const t3 = t * t2;
+    return (2 * p1 - 2 * p2 + v0 + v1) * t3 + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t2 + v0 * t + p1;
+  }
+  function QuadraticBezierP0(t, p) {
+    const k = 1 - t;
+    return k * k * p;
+  }
+  function QuadraticBezierP1(t, p) {
+    return 2 * (1 - t) * t * p;
+  }
+  function QuadraticBezierP2(t, p) {
+    return t * t * p;
+  }
+  function QuadraticBezier(t, p0, p1, p2) {
+    return QuadraticBezierP0(t, p0) + QuadraticBezierP1(t, p1) + QuadraticBezierP2(t, p2);
+  }
+  function CubicBezierP0(t, p) {
+    const k = 1 - t;
+    return k * k * k * p;
+  }
+  function CubicBezierP1(t, p) {
+    const k = 1 - t;
+    return 3 * k * k * t * p;
+  }
+  function CubicBezierP2(t, p) {
+    return 3 * (1 - t) * t * t * p;
+  }
+  function CubicBezierP3(t, p) {
+    return t * t * t * p;
+  }
+  function CubicBezier(t, p0, p1, p2, p3) {
+    return CubicBezierP0(t, p0) + CubicBezierP1(t, p1) + CubicBezierP2(t, p2) + CubicBezierP3(t, p3);
+  }
+  var CubicBezierCurve = class extends Curve {
+    constructor(v0 = new Vector2(), v1 = new Vector2(), v2 = new Vector2(), v3 = new Vector2()) {
+      super();
+      this.isCubicBezierCurve = true;
+      this.type = "CubicBezierCurve";
+      this.v0 = v0;
+      this.v1 = v1;
+      this.v2 = v2;
+      this.v3 = v3;
+    }
+    getPoint(t, optionalTarget = new Vector2()) {
+      const point = optionalTarget;
+      const v0 = this.v0, v1 = this.v1, v2 = this.v2, v3 = this.v3;
+      point.set(
+        CubicBezier(t, v0.x, v1.x, v2.x, v3.x),
+        CubicBezier(t, v0.y, v1.y, v2.y, v3.y)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.v0.copy(source.v0);
+      this.v1.copy(source.v1);
+      this.v2.copy(source.v2);
+      this.v3.copy(source.v3);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.v0 = this.v0.toArray();
+      data.v1 = this.v1.toArray();
+      data.v2 = this.v2.toArray();
+      data.v3 = this.v3.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.v0.fromArray(json.v0);
+      this.v1.fromArray(json.v1);
+      this.v2.fromArray(json.v2);
+      this.v3.fromArray(json.v3);
+      return this;
+    }
+  };
+  var CubicBezierCurve3 = class extends Curve {
+    constructor(v0 = new Vector3(), v1 = new Vector3(), v2 = new Vector3(), v3 = new Vector3()) {
+      super();
+      this.isCubicBezierCurve3 = true;
+      this.type = "CubicBezierCurve3";
+      this.v0 = v0;
+      this.v1 = v1;
+      this.v2 = v2;
+      this.v3 = v3;
+    }
+    getPoint(t, optionalTarget = new Vector3()) {
+      const point = optionalTarget;
+      const v0 = this.v0, v1 = this.v1, v2 = this.v2, v3 = this.v3;
+      point.set(
+        CubicBezier(t, v0.x, v1.x, v2.x, v3.x),
+        CubicBezier(t, v0.y, v1.y, v2.y, v3.y),
+        CubicBezier(t, v0.z, v1.z, v2.z, v3.z)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.v0.copy(source.v0);
+      this.v1.copy(source.v1);
+      this.v2.copy(source.v2);
+      this.v3.copy(source.v3);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.v0 = this.v0.toArray();
+      data.v1 = this.v1.toArray();
+      data.v2 = this.v2.toArray();
+      data.v3 = this.v3.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.v0.fromArray(json.v0);
+      this.v1.fromArray(json.v1);
+      this.v2.fromArray(json.v2);
+      this.v3.fromArray(json.v3);
+      return this;
+    }
+  };
+  var LineCurve = class extends Curve {
+    constructor(v1 = new Vector2(), v2 = new Vector2()) {
+      super();
+      this.isLineCurve = true;
+      this.type = "LineCurve";
+      this.v1 = v1;
+      this.v2 = v2;
+    }
+    getPoint(t, optionalTarget = new Vector2()) {
+      const point = optionalTarget;
+      if (t === 1) {
+        point.copy(this.v2);
+      } else {
+        point.copy(this.v2).sub(this.v1);
+        point.multiplyScalar(t).add(this.v1);
+      }
+      return point;
+    }
+    // Line curve is linear, so we can overwrite default getPointAt
+    getPointAt(u, optionalTarget) {
+      return this.getPoint(u, optionalTarget);
+    }
+    getTangent(t, optionalTarget = new Vector2()) {
+      return optionalTarget.subVectors(this.v2, this.v1).normalize();
+    }
+    getTangentAt(u, optionalTarget) {
+      return this.getTangent(u, optionalTarget);
+    }
+    copy(source) {
+      super.copy(source);
+      this.v1.copy(source.v1);
+      this.v2.copy(source.v2);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.v1 = this.v1.toArray();
+      data.v2 = this.v2.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.v1.fromArray(json.v1);
+      this.v2.fromArray(json.v2);
+      return this;
+    }
+  };
+  var LineCurve3 = class extends Curve {
+    constructor(v1 = new Vector3(), v2 = new Vector3()) {
+      super();
+      this.isLineCurve3 = true;
+      this.type = "LineCurve3";
+      this.v1 = v1;
+      this.v2 = v2;
+    }
+    getPoint(t, optionalTarget = new Vector3()) {
+      const point = optionalTarget;
+      if (t === 1) {
+        point.copy(this.v2);
+      } else {
+        point.copy(this.v2).sub(this.v1);
+        point.multiplyScalar(t).add(this.v1);
+      }
+      return point;
+    }
+    // Line curve is linear, so we can overwrite default getPointAt
+    getPointAt(u, optionalTarget) {
+      return this.getPoint(u, optionalTarget);
+    }
+    getTangent(t, optionalTarget = new Vector3()) {
+      return optionalTarget.subVectors(this.v2, this.v1).normalize();
+    }
+    getTangentAt(u, optionalTarget) {
+      return this.getTangent(u, optionalTarget);
+    }
+    copy(source) {
+      super.copy(source);
+      this.v1.copy(source.v1);
+      this.v2.copy(source.v2);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.v1 = this.v1.toArray();
+      data.v2 = this.v2.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.v1.fromArray(json.v1);
+      this.v2.fromArray(json.v2);
+      return this;
+    }
+  };
+  var QuadraticBezierCurve = class extends Curve {
+    constructor(v0 = new Vector2(), v1 = new Vector2(), v2 = new Vector2()) {
+      super();
+      this.isQuadraticBezierCurve = true;
+      this.type = "QuadraticBezierCurve";
+      this.v0 = v0;
+      this.v1 = v1;
+      this.v2 = v2;
+    }
+    getPoint(t, optionalTarget = new Vector2()) {
+      const point = optionalTarget;
+      const v0 = this.v0, v1 = this.v1, v2 = this.v2;
+      point.set(
+        QuadraticBezier(t, v0.x, v1.x, v2.x),
+        QuadraticBezier(t, v0.y, v1.y, v2.y)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.v0.copy(source.v0);
+      this.v1.copy(source.v1);
+      this.v2.copy(source.v2);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.v0 = this.v0.toArray();
+      data.v1 = this.v1.toArray();
+      data.v2 = this.v2.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.v0.fromArray(json.v0);
+      this.v1.fromArray(json.v1);
+      this.v2.fromArray(json.v2);
+      return this;
+    }
+  };
+  var QuadraticBezierCurve3 = class extends Curve {
+    constructor(v0 = new Vector3(), v1 = new Vector3(), v2 = new Vector3()) {
+      super();
+      this.isQuadraticBezierCurve3 = true;
+      this.type = "QuadraticBezierCurve3";
+      this.v0 = v0;
+      this.v1 = v1;
+      this.v2 = v2;
+    }
+    getPoint(t, optionalTarget = new Vector3()) {
+      const point = optionalTarget;
+      const v0 = this.v0, v1 = this.v1, v2 = this.v2;
+      point.set(
+        QuadraticBezier(t, v0.x, v1.x, v2.x),
+        QuadraticBezier(t, v0.y, v1.y, v2.y),
+        QuadraticBezier(t, v0.z, v1.z, v2.z)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.v0.copy(source.v0);
+      this.v1.copy(source.v1);
+      this.v2.copy(source.v2);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.v0 = this.v0.toArray();
+      data.v1 = this.v1.toArray();
+      data.v2 = this.v2.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.v0.fromArray(json.v0);
+      this.v1.fromArray(json.v1);
+      this.v2.fromArray(json.v2);
+      return this;
+    }
+  };
+  var SplineCurve = class extends Curve {
+    constructor(points = []) {
+      super();
+      this.isSplineCurve = true;
+      this.type = "SplineCurve";
+      this.points = points;
+    }
+    getPoint(t, optionalTarget = new Vector2()) {
+      const point = optionalTarget;
+      const points = this.points;
+      const p = (points.length - 1) * t;
+      const intPoint = Math.floor(p);
+      const weight = p - intPoint;
+      const p0 = points[intPoint === 0 ? intPoint : intPoint - 1];
+      const p1 = points[intPoint];
+      const p2 = points[intPoint > points.length - 2 ? points.length - 1 : intPoint + 1];
+      const p3 = points[intPoint > points.length - 3 ? points.length - 1 : intPoint + 2];
+      point.set(
+        CatmullRom(weight, p0.x, p1.x, p2.x, p3.x),
+        CatmullRom(weight, p0.y, p1.y, p2.y, p3.y)
+      );
+      return point;
+    }
+    copy(source) {
+      super.copy(source);
+      this.points = [];
+      for (let i = 0, l = source.points.length; i < l; i++) {
+        const point = source.points[i];
+        this.points.push(point.clone());
+      }
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.points = [];
+      for (let i = 0, l = this.points.length; i < l; i++) {
+        const point = this.points[i];
+        data.points.push(point.toArray());
+      }
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.points = [];
+      for (let i = 0, l = json.points.length; i < l; i++) {
+        const point = json.points[i];
+        this.points.push(new Vector2().fromArray(point));
+      }
+      return this;
+    }
+  };
+  var Curves = /* @__PURE__ */ Object.freeze({
+    __proto__: null,
+    ArcCurve,
+    CatmullRomCurve3,
+    CubicBezierCurve,
+    CubicBezierCurve3,
+    EllipseCurve,
+    LineCurve,
+    LineCurve3,
+    QuadraticBezierCurve,
+    QuadraticBezierCurve3,
+    SplineCurve
+  });
+  var CurvePath = class extends Curve {
+    constructor() {
+      super();
+      this.type = "CurvePath";
+      this.curves = [];
+      this.autoClose = false;
+    }
+    add(curve) {
+      this.curves.push(curve);
+    }
+    closePath() {
+      const startPoint = this.curves[0].getPoint(0);
+      const endPoint = this.curves[this.curves.length - 1].getPoint(1);
+      if (!startPoint.equals(endPoint)) {
+        const lineType = startPoint.isVector2 === true ? "LineCurve" : "LineCurve3";
+        this.curves.push(new Curves[lineType](endPoint, startPoint));
+      }
+      return this;
+    }
+    // To get accurate point with reference to
+    // entire path distance at time t,
+    // following has to be done:
+    // 1. Length of each sub path have to be known
+    // 2. Locate and identify type of curve
+    // 3. Get t for the curve
+    // 4. Return curve.getPointAt(t')
+    getPoint(t, optionalTarget) {
+      const d = t * this.getLength();
+      const curveLengths = this.getCurveLengths();
+      let i = 0;
+      while (i < curveLengths.length) {
+        if (curveLengths[i] >= d) {
+          const diff = curveLengths[i] - d;
+          const curve = this.curves[i];
+          const segmentLength = curve.getLength();
+          const u = segmentLength === 0 ? 0 : 1 - diff / segmentLength;
+          return curve.getPointAt(u, optionalTarget);
+        }
+        i++;
+      }
+      return null;
+    }
+    // We cannot use the default THREE.Curve getPoint() with getLength() because in
+    // THREE.Curve, getLength() depends on getPoint() but in THREE.CurvePath
+    // getPoint() depends on getLength
+    getLength() {
+      const lens = this.getCurveLengths();
+      return lens[lens.length - 1];
+    }
+    // cacheLengths must be recalculated.
+    updateArcLengths() {
+      this.needsUpdate = true;
+      this.cacheLengths = null;
+      this.getCurveLengths();
+    }
+    // Compute lengths and cache them
+    // We cannot overwrite getLengths() because UtoT mapping uses it.
+    getCurveLengths() {
+      if (this.cacheLengths && this.cacheLengths.length === this.curves.length) {
+        return this.cacheLengths;
+      }
+      const lengths = [];
+      let sums = 0;
+      for (let i = 0, l = this.curves.length; i < l; i++) {
+        sums += this.curves[i].getLength();
+        lengths.push(sums);
+      }
+      this.cacheLengths = lengths;
+      return lengths;
+    }
+    getSpacedPoints(divisions = 40) {
+      const points = [];
+      for (let i = 0; i <= divisions; i++) {
+        points.push(this.getPoint(i / divisions));
+      }
+      if (this.autoClose) {
+        points.push(points[0]);
+      }
+      return points;
+    }
+    getPoints(divisions = 12) {
+      const points = [];
+      let last;
+      for (let i = 0, curves = this.curves; i < curves.length; i++) {
+        const curve = curves[i];
+        const resolution = curve.isEllipseCurve ? divisions * 2 : curve.isLineCurve || curve.isLineCurve3 ? 1 : curve.isSplineCurve ? divisions * curve.points.length : divisions;
+        const pts = curve.getPoints(resolution);
+        for (let j = 0; j < pts.length; j++) {
+          const point = pts[j];
+          if (last && last.equals(point)) continue;
+          points.push(point);
+          last = point;
+        }
+      }
+      if (this.autoClose && points.length > 1 && !points[points.length - 1].equals(points[0])) {
+        points.push(points[0]);
+      }
+      return points;
+    }
+    copy(source) {
+      super.copy(source);
+      this.curves = [];
+      for (let i = 0, l = source.curves.length; i < l; i++) {
+        const curve = source.curves[i];
+        this.curves.push(curve.clone());
+      }
+      this.autoClose = source.autoClose;
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.autoClose = this.autoClose;
+      data.curves = [];
+      for (let i = 0, l = this.curves.length; i < l; i++) {
+        const curve = this.curves[i];
+        data.curves.push(curve.toJSON());
+      }
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.autoClose = json.autoClose;
+      this.curves = [];
+      for (let i = 0, l = json.curves.length; i < l; i++) {
+        const curve = json.curves[i];
+        this.curves.push(new Curves[curve.type]().fromJSON(curve));
+      }
+      return this;
+    }
+  };
+  var Path = class extends CurvePath {
+    constructor(points) {
+      super();
+      this.type = "Path";
+      this.currentPoint = new Vector2();
+      if (points) {
+        this.setFromPoints(points);
+      }
+    }
+    setFromPoints(points) {
+      this.moveTo(points[0].x, points[0].y);
+      for (let i = 1, l = points.length; i < l; i++) {
+        this.lineTo(points[i].x, points[i].y);
+      }
+      return this;
+    }
+    moveTo(x, y) {
+      this.currentPoint.set(x, y);
+      return this;
+    }
+    lineTo(x, y) {
+      const curve = new LineCurve(this.currentPoint.clone(), new Vector2(x, y));
+      this.curves.push(curve);
+      this.currentPoint.set(x, y);
+      return this;
+    }
+    quadraticCurveTo(aCPx, aCPy, aX, aY) {
+      const curve = new QuadraticBezierCurve(
+        this.currentPoint.clone(),
+        new Vector2(aCPx, aCPy),
+        new Vector2(aX, aY)
+      );
+      this.curves.push(curve);
+      this.currentPoint.set(aX, aY);
+      return this;
+    }
+    bezierCurveTo(aCP1x, aCP1y, aCP2x, aCP2y, aX, aY) {
+      const curve = new CubicBezierCurve(
+        this.currentPoint.clone(),
+        new Vector2(aCP1x, aCP1y),
+        new Vector2(aCP2x, aCP2y),
+        new Vector2(aX, aY)
+      );
+      this.curves.push(curve);
+      this.currentPoint.set(aX, aY);
+      return this;
+    }
+    splineThru(pts) {
+      const npts = [this.currentPoint.clone()].concat(pts);
+      const curve = new SplineCurve(npts);
+      this.curves.push(curve);
+      this.currentPoint.copy(pts[pts.length - 1]);
+      return this;
+    }
+    arc(aX, aY, aRadius, aStartAngle, aEndAngle, aClockwise) {
+      const x0 = this.currentPoint.x;
+      const y0 = this.currentPoint.y;
+      this.absarc(
+        aX + x0,
+        aY + y0,
+        aRadius,
+        aStartAngle,
+        aEndAngle,
+        aClockwise
+      );
+      return this;
+    }
+    absarc(aX, aY, aRadius, aStartAngle, aEndAngle, aClockwise) {
+      this.absellipse(aX, aY, aRadius, aRadius, aStartAngle, aEndAngle, aClockwise);
+      return this;
+    }
+    ellipse(aX, aY, xRadius, yRadius, aStartAngle, aEndAngle, aClockwise, aRotation) {
+      const x0 = this.currentPoint.x;
+      const y0 = this.currentPoint.y;
+      this.absellipse(aX + x0, aY + y0, xRadius, yRadius, aStartAngle, aEndAngle, aClockwise, aRotation);
+      return this;
+    }
+    absellipse(aX, aY, xRadius, yRadius, aStartAngle, aEndAngle, aClockwise, aRotation) {
+      const curve = new EllipseCurve(aX, aY, xRadius, yRadius, aStartAngle, aEndAngle, aClockwise, aRotation);
+      if (this.curves.length > 0) {
+        const firstPoint = curve.getPoint(0);
+        if (!firstPoint.equals(this.currentPoint)) {
+          this.lineTo(firstPoint.x, firstPoint.y);
+        }
+      }
+      this.curves.push(curve);
+      const lastPoint = curve.getPoint(1);
+      this.currentPoint.copy(lastPoint);
+      return this;
+    }
+    copy(source) {
+      super.copy(source);
+      this.currentPoint.copy(source.currentPoint);
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.currentPoint = this.currentPoint.toArray();
+      return data;
+    }
+    fromJSON(json) {
+      super.fromJSON(json);
+      this.currentPoint.fromArray(json.currentPoint);
+      return this;
+    }
+  };
+  var LatheGeometry = class _LatheGeometry extends BufferGeometry {
+    constructor(points = [new Vector2(0, -0.5), new Vector2(0.5, 0), new Vector2(0, 0.5)], segments = 12, phiStart = 0, phiLength = Math.PI * 2) {
+      super();
+      this.type = "LatheGeometry";
+      this.parameters = {
+        points,
+        segments,
+        phiStart,
+        phiLength
+      };
+      segments = Math.floor(segments);
+      phiLength = clamp(phiLength, 0, Math.PI * 2);
+      const indices = [];
+      const vertices = [];
+      const uvs = [];
+      const initNormals = [];
+      const normals = [];
+      const inverseSegments = 1 / segments;
+      const vertex2 = new Vector3();
+      const uv = new Vector2();
+      const normal = new Vector3();
+      const curNormal = new Vector3();
+      const prevNormal = new Vector3();
+      let dx = 0;
+      let dy = 0;
+      for (let j = 0; j <= points.length - 1; j++) {
+        switch (j) {
+          case 0:
+            dx = points[j + 1].x - points[j].x;
+            dy = points[j + 1].y - points[j].y;
+            normal.x = dy * 1;
+            normal.y = -dx;
+            normal.z = dy * 0;
+            prevNormal.copy(normal);
+            normal.normalize();
+            initNormals.push(normal.x, normal.y, normal.z);
+            break;
+          case points.length - 1:
+            initNormals.push(prevNormal.x, prevNormal.y, prevNormal.z);
+            break;
+          default:
+            dx = points[j + 1].x - points[j].x;
+            dy = points[j + 1].y - points[j].y;
+            normal.x = dy * 1;
+            normal.y = -dx;
+            normal.z = dy * 0;
+            curNormal.copy(normal);
+            normal.x += prevNormal.x;
+            normal.y += prevNormal.y;
+            normal.z += prevNormal.z;
+            normal.normalize();
+            initNormals.push(normal.x, normal.y, normal.z);
+            prevNormal.copy(curNormal);
+        }
+      }
+      for (let i = 0; i <= segments; i++) {
+        const phi = phiStart + i * inverseSegments * phiLength;
+        const sin = Math.sin(phi);
+        const cos = Math.cos(phi);
+        for (let j = 0; j <= points.length - 1; j++) {
+          vertex2.x = points[j].x * sin;
+          vertex2.y = points[j].y;
+          vertex2.z = points[j].x * cos;
+          vertices.push(vertex2.x, vertex2.y, vertex2.z);
+          uv.x = i / segments;
+          uv.y = j / (points.length - 1);
+          uvs.push(uv.x, uv.y);
+          const x = initNormals[3 * j + 0] * sin;
+          const y = initNormals[3 * j + 1];
+          const z = initNormals[3 * j + 0] * cos;
+          normals.push(x, y, z);
+        }
+      }
+      for (let i = 0; i < segments; i++) {
+        for (let j = 0; j < points.length - 1; j++) {
+          const base = j + i * points.length;
+          const a = base;
+          const b = base + points.length;
+          const c = base + points.length + 1;
+          const d = base + 1;
+          indices.push(a, b, d);
+          indices.push(c, d, b);
+        }
+      }
+      this.setIndex(indices);
+      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+    static fromJSON(data) {
+      return new _LatheGeometry(data.points, data.segments, data.phiStart, data.phiLength);
+    }
+  };
+  var CapsuleGeometry = class _CapsuleGeometry extends LatheGeometry {
+    constructor(radius = 1, length = 1, capSegments = 4, radialSegments = 8) {
+      const path = new Path();
+      path.absarc(0, -length / 2, radius, Math.PI * 1.5, 0);
+      path.absarc(0, length / 2, radius, 0, Math.PI * 0.5);
+      super(path.getPoints(capSegments), radialSegments);
+      this.type = "CapsuleGeometry";
+      this.parameters = {
+        radius,
+        length,
+        capSegments,
+        radialSegments
+      };
+    }
+    static fromJSON(data) {
+      return new _CapsuleGeometry(data.radius, data.length, data.capSegments, data.radialSegments);
+    }
+  };
   var CylinderGeometry = class _CylinderGeometry extends BufferGeometry {
     constructor(radiusTop = 1, radiusBottom = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
       super();
@@ -18761,6 +20301,67 @@ void main() {
     }
     static fromJSON(data) {
       return new _CylinderGeometry(data.radiusTop, data.radiusBottom, data.height, data.radialSegments, data.heightSegments, data.openEnded, data.thetaStart, data.thetaLength);
+    }
+  };
+  var RingGeometry = class _RingGeometry extends BufferGeometry {
+    constructor(innerRadius = 0.5, outerRadius = 1, thetaSegments = 32, phiSegments = 1, thetaStart = 0, thetaLength = Math.PI * 2) {
+      super();
+      this.type = "RingGeometry";
+      this.parameters = {
+        innerRadius,
+        outerRadius,
+        thetaSegments,
+        phiSegments,
+        thetaStart,
+        thetaLength
+      };
+      thetaSegments = Math.max(3, thetaSegments);
+      phiSegments = Math.max(1, phiSegments);
+      const indices = [];
+      const vertices = [];
+      const normals = [];
+      const uvs = [];
+      let radius = innerRadius;
+      const radiusStep = (outerRadius - innerRadius) / phiSegments;
+      const vertex2 = new Vector3();
+      const uv = new Vector2();
+      for (let j = 0; j <= phiSegments; j++) {
+        for (let i = 0; i <= thetaSegments; i++) {
+          const segment = thetaStart + i / thetaSegments * thetaLength;
+          vertex2.x = radius * Math.cos(segment);
+          vertex2.y = radius * Math.sin(segment);
+          vertices.push(vertex2.x, vertex2.y, vertex2.z);
+          normals.push(0, 0, 1);
+          uv.x = (vertex2.x / outerRadius + 1) / 2;
+          uv.y = (vertex2.y / outerRadius + 1) / 2;
+          uvs.push(uv.x, uv.y);
+        }
+        radius += radiusStep;
+      }
+      for (let j = 0; j < phiSegments; j++) {
+        const thetaSegmentLevel = j * (thetaSegments + 1);
+        for (let i = 0; i < thetaSegments; i++) {
+          const segment = i + thetaSegmentLevel;
+          const a = segment;
+          const b = segment + thetaSegments + 1;
+          const c = segment + thetaSegments + 2;
+          const d = segment + 1;
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+      this.setIndex(indices);
+      this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+      this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+      this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    }
+    copy(source) {
+      super.copy(source);
+      this.parameters = Object.assign({}, source.parameters);
+      return this;
+    }
+    static fromJSON(data) {
+      return new _RingGeometry(data.innerRadius, data.outerRadius, data.thetaSegments, data.phiSegments, data.thetaStart, data.thetaLength);
     }
   };
   var SphereGeometry = class _SphereGeometry extends BufferGeometry {
@@ -20175,10 +21776,10 @@ void main() {
       this.setAttribute("uv", new Float32BufferAttribute([0, 2, 0, 0, 2, 0], 2));
     }
   };
-  var _geometry = new FullscreenTriangleGeometry();
+  var _geometry2 = new FullscreenTriangleGeometry();
   var FullScreenQuad = class {
     constructor(material) {
-      this._mesh = new Mesh(_geometry, material);
+      this._mesh = new Mesh(_geometry2, material);
     }
     dispose() {
       this._mesh.geometry.dispose();
@@ -20318,9 +21919,9 @@ void main() {
       this.clock = new Clock();
     }
     swapBuffers() {
-      const tmp = this.readBuffer;
+      const tmp2 = this.readBuffer;
       this.readBuffer = this.writeBuffer;
-      this.writeBuffer = tmp;
+      this.writeBuffer = tmp2;
     }
     addPass(pass) {
       this.passes.push(pass);
@@ -21523,10 +23124,13 @@ void main() {
         this.coinMat.emissiveIntensity = coinV;
       }
     }
-    reset() {
+    // seed 决定整条赛道：同一个种子 = 完全相同的楼群、障碍与芯片位置。
+    // 竞速模式靠这一点让所有客户端各自本地生成同一条赛道，不需要同步关卡数据。
+    reset(seed) {
       for (const s of this.segments) this._freeSegment(s);
       this.segments = [];
-      this.rng = mulberry32(Math.random() * 1e9 | 0);
+      this.seed = (seed === void 0 ? Math.random() * 1e9 | 0 : seed) | 0;
+      this.rng = mulberry32(this.seed);
       const seg = this._makeSegment({ z1: -40 }, 0);
       seg.z0 = -40;
       seg.z1 = 45;
@@ -21587,7 +23191,9 @@ void main() {
     _genOne() {
       const prev = this.segments[this.segments.length - 1];
       const rng = this.rng;
-      const { speed: speed2, diff } = this.env;
+      const pos = Math.max(0, this.nextZ - 45);
+      const speed2 = Math.min(34, 12 + pos * 0.018);
+      const diff = clamp2(pos / 1600, 0, 1);
       const L = 14 + rng() * 15 + diff * 5;
       const r = rng();
       let dy = 0;
@@ -21771,6 +23377,14 @@ void main() {
       }
       return best2;
     }
+    // 只按 z 找平台（不限制 x）：竞速模式复活时用来把玩家拉回楼顶
+    platformNear(z) {
+      let best2 = null;
+      for (const s of this.segments) {
+        if (z >= s.z0 && z <= s.z1 && (!best2 || s.y > best2.y)) best2 = s;
+      }
+      return best2;
+    }
     obstaclesNear(z, range = 2) {
       const out = [];
       for (const s of this.segments) {
@@ -21880,6 +23494,13 @@ void main() {
       this.prevY = 10;
       this.glideT = 0;
       this._odPrev = false;
+      this.raceMode = false;
+      this.speedMul = 1;
+      this.speedMulT = 0;
+      this.invulnT = 0;
+      this.hitFlash = 0;
+      this.lastGroundX = 0;
+      this.lastGroundZ = 0;
       this._v = new Vector3();
     }
     reset(z) {
@@ -21899,6 +23520,12 @@ void main() {
       this.prevY = 10;
       this.glideT = 0;
       this._odPrev = false;
+      this.speedMul = 1;
+      this.speedMulT = 0;
+      this.invulnT = 0;
+      this.hitFlash = 0;
+      this.lastGroundX = 0;
+      this.lastGroundZ = 0;
     }
     get height() {
       return this.sliding ? H_SLIDE : H_STAND;
@@ -21916,6 +23543,12 @@ void main() {
         return;
       }
       this.pos.z += speed2 * dt;
+      if (this.speedMulT > 0) {
+        this.speedMulT -= dt;
+        if (this.speedMulT <= 0) this.speedMul = 1;
+      }
+      if (this.invulnT > 0) this.invulnT -= dt;
+      this.hitFlash = damp(this.hitFlash, 0, 5, dt);
       if (this._odPrev && !overdrive && !this.grounded) this.glideT = 2;
       this._odPrev = overdrive;
       if (this.glideT > 0) this.glideT -= dt;
@@ -22005,6 +23638,8 @@ void main() {
         this.vy = 0;
         this.grounded = true;
         this.lastGroundY = groundY;
+        this.lastGroundX = this.pos.x;
+        this.lastGroundZ = this.pos.z;
         this.coyote = 0.11;
         this.glideT = 0;
       } else if (this.grounded && (groundY === null || this.pos.y > groundY + 0.05)) {
@@ -22013,7 +23648,7 @@ void main() {
         this.coyote = 0.11;
       }
       this.prevY = this.pos.y;
-      if (!overdrive && this.glideT <= 0) {
+      if (!overdrive && this.glideT <= 0 && this.invulnT <= 0) {
         const top = this.pos.y + this.height;
         for (const o of city2.obstaclesNear(this.pos.z, 1.5)) {
           if (this.pos.x + CRASH_R > o.x0 && this.pos.x - CRASH_R < o.x1 && this.pos.z + CRASH_PAD_Z > o.z0 && this.pos.z - CRASH_PAD_Z < o.z1 && top > o.y0 + 0.05 && this.pos.y < o.y1 - CRASH_Y_FORGIVE) {
@@ -22024,13 +23659,15 @@ void main() {
               o: { kind: o.kind, x0: o.x0, x1: o.x1, y0: o.y0, y1: o.y1, z0: o.z0, z1: o.z1 },
               dist: window.__game ? Math.round(window.__game.dist) : -1
             };
-            this.die("crash");
+            if (this.raceMode) this.hit(o);
+            else this.die("crash");
             break;
           }
         }
       }
       if (!seg && this.alive && !overdrive && this.glideT <= 0 && this.pos.y < this.lastGroundY - 9) {
-        this.die("fall");
+        if (this.raceMode) this.respawn(city2);
+        else this.die("fall");
       }
       if (this.grounded && !this.sliding) {
         const prev = Math.sin(this.bobPhase);
@@ -22043,6 +23680,49 @@ void main() {
       }
       this.landKick = damp(this.landKick, 0, 6, dt);
       this.roll = damp(this.roll, -this.vx * 0.012, 8, dt);
+    }
+    // 竞速模式：撞上障碍不是终点，而是掉一大截速度（并短暂无敌，避免卡在箱子里连撞）
+    hit(o) {
+      if (this.invulnT > 0) return;
+      this.invulnT = 0.85;
+      this.speedMul = 0.5;
+      this.speedMulT = 1.15;
+      this.hitFlash = 1;
+      this.sliding = false;
+      this.audio.crash();
+      this.fx.burst(this._v.set(this.pos.x, this.pos.y + 1.1, this.pos.z), 16747085, {
+        count: 22,
+        speed: 5,
+        up: 3,
+        life: 0.7,
+        spread: 0.9
+      });
+    }
+    // 竞速模式：掉下楼不判负，拉回掉下去的那块楼顶，扣速度继续跑
+    respawn(city2) {
+      let z = this.lastGroundZ - 2;
+      let seg = city2.platformAt(this.lastGroundX, z) || city2.platformNear(z);
+      if (!seg) {
+        z = this.pos.z;
+        seg = city2.platformNear(z);
+      }
+      if (!seg) {
+        this.die("fall");
+        return;
+      }
+      const x = clamp2(this.lastGroundX, seg.cx - seg.w / 2 + 0.5, seg.cx + seg.w / 2 - 0.5);
+      const zz = clamp2(z, seg.z0 + 0.8, seg.z1 - 0.8);
+      this.pos.set(x, seg.y + 0.6, zz);
+      this.prevY = this.pos.y;
+      this.vy = 0;
+      this.vx = 0;
+      this.grounded = false;
+      this.glideT = 0;
+      this.speedMul = 0.55;
+      this.speedMulT = 1.2;
+      this.hitFlash = 0.8;
+      this.invulnT = 0.6;
+      this.audio.fall();
     }
     die(type) {
       if (!this.alive) return;
@@ -22295,11 +23975,20 @@ void main() {
         deathLabel: $("deathLabel"),
         touchUI: $("touchUI"),
         gestureHint: $("gestureHint"),
-        dashBtn: $("btnDash")
+        dashBtn: $("btnDash"),
+        raceBoard: $("raceBoard"),
+        countdown: $("countdown"),
+        hitFlash: $("hitFlash"),
+        f1l: $("f1l"),
+        f2l: $("f2l"),
+        f3l: $("f3l"),
+        f1u: $("f1u"),
+        f3u: $("f3u")
       };
       this._toastT = null;
       this._hintT = null;
       this._lastDist = -1;
+      this._boardKey = "";
     }
     hud(dist2, best2, coins2, energy2, odActive, odCd2 = 0) {
       const d = dist2 | 0;
@@ -22323,6 +24012,35 @@ void main() {
     speedFx(on) {
       this.el.speedlines.classList.toggle("on", on);
     }
+    // ---- 竞速模式 ----
+    race(on) {
+      this.el.raceBoard.classList.toggle("on", on);
+      this._boardKey = "";
+    }
+    // 名次表：只有内容变化时才重建 DOM（每帧 innerHTML 会掉帧）
+    board(rows, timeStr) {
+      const me = rows.find((r) => r.me);
+      const key = rows.map((r) => `${r.place}${r.gap}`).join("|") + timeStr;
+      if (key === this._boardKey) return;
+      this._boardKey = key;
+      let html = `<div class="race-head"><span>${timeStr}</span><b>${me ? me.place : 1}/${rows.length}</b></div>`;
+      for (const r of rows) {
+        html += `<div class="race-row${r.me ? " me" : ""}" style="--c:${r.color}"><b>${r.place}</b><i></i><span>${r.name}</span><em>${r.gap}</em></div>`;
+      }
+      this.el.raceBoard.innerHTML = html;
+    }
+    countdown(text) {
+      if (text === null) {
+        this.el.countdown.classList.remove("on");
+        return;
+      }
+      this.el.countdown.textContent = text;
+      this.el.countdown.classList.add("on");
+    }
+    // 受击红边：强度直接给 0~1
+    hit(v) {
+      this.el.hitFlash.style.opacity = v < 0.02 ? "0" : (v * 0.62).toFixed(2);
+    }
     touch(on) {
       this.el.touchUI.classList.toggle("on", on);
       document.getElementById("touchArea").classList.toggle("on", on);
@@ -22343,15 +24061,35 @@ void main() {
         this.el[k].classList.toggle("visible", k === name);
       }
       this.el.hud.classList.toggle("hidden", name === "title");
+      if (name === "title") this.race(false);
     }
     setDeath(type) {
       this.el.deathLabel.textContent = type === "fall" ? "\u4F60\u5760\u5165\u4E86\u697C\u4E0E\u697C\u4E4B\u95F4\u7684\u9EC4\u660F" : "\u4F60\u649E\u4E0A\u4E86\u5929\u53F0\u4E0A\u7684\u969C\u788D\u7269";
     }
     setFinal(dist2, coins2, best2, isNew) {
+      this.el.f1l.textContent = "\u5954\u8DD1\u8DDD\u79BB";
+      this.el.f2l.textContent = "\u82AF\u7247";
+      this.el.f3l.textContent = "\u6700\u4F73";
+      this.el.f1u.textContent = "m";
+      this.el.f3u.textContent = "m";
       this.el.finalDist.textContent = dist2 | 0;
       this.el.finalCoins.textContent = coins2;
       this.el.finalBest.textContent = best2;
       this.el.newRecord.classList.toggle("visible", isNew);
+    }
+    // 竞速结算：名次 / 用时 / 芯片
+    setRaceResult(place, total, timeStr, coins2, isBest) {
+      this.el.deathLabel.textContent = place === 1 ? "\u51A0\u519B \xB7 \u7B2C\u4E00\u4E2A\u51B2\u8FC7\u7EC8\u70B9\u7EBF" : `\u7B2C ${place} \u540D \xB7 \u53EA\u5DEE\u4E00\u70B9`;
+      this.el.f1l.textContent = "\u540D\u6B21";
+      this.el.f2l.textContent = "\u7528\u65F6";
+      this.el.f3l.textContent = "\u82AF\u7247";
+      this.el.f1u.textContent = "";
+      this.el.f3u.textContent = "";
+      this.el.finalDist.textContent = `${place}/${total}`;
+      this.el.finalCoins.textContent = timeStr;
+      this.el.finalBest.textContent = coins2;
+      this.el.newRecord.textContent = "\u2605 \u6700\u4F73\u7528\u65F6 \u2605";
+      this.el.newRecord.classList.toggle("visible", !!isBest);
     }
     toast(msg, ms = 1800) {
       const t = this.el.toast;
@@ -22693,6 +24431,158 @@ void main() {
     }
   };
 
+  // src/race.js
+  var RACE_LEN = 2200;
+  var AI_NAMES = ["\u9713\u8679", "\u8D64\u98CE", "\u591C\u822A"];
+  var AI_COLORS = [7329535, 16756838, 12160255];
+  function nameTag(text, color) {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 64;
+    const g = c.getContext("2d");
+    g.font = '600 38px system-ui, "PingFang SC", sans-serif';
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.lineWidth = 6;
+    g.strokeStyle = "rgba(4,8,14,0.9)";
+    g.strokeText(text, 128, 33);
+    g.fillStyle = "#" + color.toString(16).padStart(6, "0");
+    g.fillText(text, 128, 33);
+    const tex = new CanvasTexture(c);
+    tex.colorSpace = SRGBColorSpace;
+    const sp = new Sprite(new SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    sp.scale.set(2.4, 0.6, 1);
+    return sp;
+  }
+  var Race = class {
+    constructor(stage2, city2) {
+      this.stage = stage2;
+      this.city = city2;
+      this.len = RACE_LEN;
+      this.opponents = [];
+      this.place = 1;
+      this.time = 0;
+      this.done = false;
+      this._root = new Group();
+      stage2.scene.add(this._root);
+      this._geo = new CapsuleGeometry(0.3, 0.92, 4, 10);
+      this._ringGeo = new RingGeometry(0.46, 0.62, 26);
+    }
+    reset(seed, opts = {}) {
+      this.len = opts.len || RACE_LEN;
+      this.time = 0;
+      this.place = 1;
+      this.done = false;
+      for (const o of this.opponents) o.root.visible = false;
+      this.opponents.length = 0;
+      const n = opts.ai === void 0 ? 2 : opts.ai;
+      for (let i = 0; i < n; i++) this._addAI(i, seed);
+    }
+    _addAI(i, seed) {
+      const color = AI_COLORS[i % AI_COLORS.length];
+      const root = new Group();
+      const body = new Mesh(
+        this._geo,
+        new MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.9,
+          roughness: 0.45,
+          metalness: 0.25,
+          transparent: true,
+          opacity: 0.92
+        })
+      );
+      body.position.y = 0.86;
+      body.castShadow = false;
+      root.add(body);
+      const ring = new Mesh(
+        this._ringGeo,
+        new MeshBasicMaterial({ color, transparent: true, opacity: 0.45, side: DoubleSide })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.04;
+      root.add(ring);
+      const tag = nameTag(AI_NAMES[i % AI_NAMES.length], color);
+      tag.position.y = 2.15;
+      root.add(tag);
+      this._root.add(root);
+      const rng = mulberry32((seed | 0) + i * 7919 + 13);
+      this.opponents.push({
+        ai: true,
+        name: AI_NAMES[i % AI_NAMES.length],
+        color,
+        root,
+        z: -5 - i * 5,
+        // 起跑线后错开排队
+        x: (i - 0.5) * 3,
+        y: 10,
+        pace: 0.955 + rng() * 0.065,
+        // 相对玩家速度的系数：有强有弱
+        wob: rng() * 6.283,
+        t: rng() * 3,
+        finished: false,
+        finishT: 0
+      });
+    }
+    // 生成要跑到所有对手前面，否则领先的幽灵会掉进"还没生成的地图"
+    maxZ() {
+      let m = 0;
+      for (const o of this.opponents) if (o.z > m) m = o.z;
+      return m;
+    }
+    update(dt, playerZ) {
+      this.time += dt;
+      for (const o of this.opponents) {
+        if (o.finished) {
+          o.root.position.set(o.x, o.y, o.z);
+          continue;
+        }
+        o.t += dt;
+        const base = Math.min(34, 12 + o.z * 0.018) * o.pace;
+        o.z += base * (1 + Math.sin(o.t * 1.7) * 0.035) * dt;
+        const seg = this.city.platformAt(o.x, o.z);
+        if (seg) {
+          o.y = seg.y;
+          const target = seg.cx + Math.sin(o.z * 0.11 + o.wob) * (seg.w * 0.18);
+          o.x = damp(o.x, clamp2(target, seg.cx - seg.w / 2 + 0.7, seg.cx + seg.w / 2 - 0.7), 4, dt);
+        }
+        o.root.position.set(o.x, o.y, o.z);
+        if (o.z >= this.len) {
+          o.finished = true;
+          o.finishT = this.time;
+        }
+      }
+      let ahead = 0;
+      for (const o of this.opponents) if (o.finished || o.z > playerZ) ahead++;
+      this.place = ahead + 1;
+    }
+    // 名次表：按赛道进度降序，相差的米数直接给玩家看
+    rows(playerZ) {
+      const list = [
+        { name: "\u4F60", z: playerZ, me: true, color: "#6fd6ff", done: false },
+        ...this.opponents.map((o) => ({
+          name: o.name,
+          z: Math.min(o.z, this.len),
+          me: false,
+          color: "#" + o.color.toString(16).padStart(6, "0"),
+          done: o.finished
+        }))
+      ];
+      list.sort((a, b) => b.z - a.z);
+      return list.map((r, i) => ({
+        place: i + 1,
+        name: r.name,
+        me: r.me,
+        color: r.color,
+        gap: r.me ? "\u2014" : r.done ? "\u5B8C\u8D5B" : `${r.z > playerZ ? "+" : ""}${Math.round(r.z - playerZ)}m`
+      }));
+    }
+    setVisible(on) {
+      this._root.visible = on;
+    }
+  };
+
   // src/main.js
   window.addEventListener("error", (e) => {
     const el = document.getElementById("toast");
@@ -22712,9 +24602,16 @@ void main() {
   var hud = new HUD();
   var input = new Input();
   var daylight = new Daylight(stage, city);
+  var race = new Race(stage, city);
   var isCoarse = matchMedia("(pointer: coarse)").matches;
   var BEST_KEY = "skyline-rush-best";
+  var RACE_BEST_KEY = "skyline-rush-race-best";
   var mode = "title";
+  var lastPlay = "run";
+  var pauseFrom = "run";
+  var raceState = "idle";
+  var cdT = 0;
+  var lastCd = "";
   var baseSpeed = 12;
   var speed = 12;
   var dist = 0;
@@ -22741,6 +24638,8 @@ void main() {
     audio.init();
     city.reset();
     player.reset(0);
+    player.raceMode = false;
+    race.setVisible(false);
     baseSpeed = 12;
     speed = 12;
     dist = 0;
@@ -22755,7 +24654,49 @@ void main() {
     deathDelay = 0;
     timeScale = 1;
     mode = "run";
+    lastPlay = "run";
+    raceState = "idle";
+    hud.race(false);
+    hud.countdown(null);
     hud.showScreen(null);
+    hud.touch(isCoarse);
+    if (isCoarse && !fsEl()) toggleFullscreen();
+    syncRotate();
+    audio.ui();
+  }
+  function fmtTime(t) {
+    const m = Math.floor(t / 60);
+    const s = t - m * 60;
+    return `${m}:${s.toFixed(2).padStart(5, "0")}`;
+  }
+  function startRace(seed) {
+    audio.init();
+    const s = seed === void 0 ? Math.random() * 1e9 | 0 : seed | 0;
+    city.reset(s);
+    player.reset(0);
+    player.raceMode = true;
+    race.reset(s, { ai: 2, len: RACE_LEN });
+    race.setVisible(true);
+    baseSpeed = 12;
+    speed = 12;
+    dist = 0;
+    coins = 0;
+    energy = 0;
+    odT = 0;
+    odCd = 0;
+    glideWas = false;
+    lastPhase = 0;
+    daylight.update(0);
+    streak = 0;
+    deathDelay = 0;
+    timeScale = 1;
+    mode = "race";
+    lastPlay = "race";
+    raceState = "countdown";
+    cdT = 3.4;
+    lastCd = "";
+    hud.showScreen(null);
+    hud.race(true);
     hud.touch(isCoarse);
     if (isCoarse && !fsEl()) toggleFullscreen();
     syncRotate();
@@ -22765,7 +24706,7 @@ void main() {
     const hint = document.getElementById("rotateHint");
     if (!hint) return;
     const portrait = window.innerHeight > window.innerWidth;
-    hint.classList.toggle("show", isCoarse && portrait && mode === "run");
+    hint.classList.toggle("show", isCoarse && portrait && (mode === "run" || mode === "race"));
   }
   window.addEventListener("resize", syncRotate);
   function gameOver() {
@@ -22783,9 +24724,33 @@ void main() {
     hud.speedFx(false);
     syncRotate();
   }
+  function finishRace() {
+    mode = "over";
+    raceState = "done";
+    player.raceMode = false;
+    const place = race.place;
+    const t = race.time;
+    const rb = +(localStorage.getItem(RACE_BEST_KEY) || 0);
+    const isBest = rb === 0 || t < rb;
+    if (isBest) localStorage.setItem(RACE_BEST_KEY, String(t));
+    hud.setRaceResult(place, race.opponents.length + 1, fmtTime(t), coins, isBest);
+    hud.showScreen("over");
+    hud.race(false);
+    hud.touch(false);
+    hud.speedFx(false);
+    hud.countdown(null);
+    hud.hit(0);
+    syncRotate();
+    audio.ui();
+  }
   function backToTitle() {
     mode = "title";
     ghostZ = 0;
+    player.raceMode = false;
+    race.setVisible(false);
+    hud.race(false);
+    hud.countdown(null);
+    hud.hit(0);
     city.reset();
     hud.showScreen("title");
     hud.speedFx(false);
@@ -22793,7 +24758,8 @@ void main() {
     syncRotate();
   }
   function pause() {
-    if (mode !== "run") return;
+    if (mode !== "run" && mode !== "race") return;
+    pauseFrom = mode;
     mode = "pause";
     hud.showScreen("pause");
     hud.touch(false);
@@ -22801,7 +24767,7 @@ void main() {
   }
   function resume() {
     if (mode !== "pause") return;
-    mode = "run";
+    mode = pauseFrom;
     hud.showScreen(null);
     hud.touch(isCoarse);
     syncRotate();
@@ -22814,12 +24780,13 @@ void main() {
     });
   }
   bindUI("startBtn", startGame);
-  bindUI("retryBtn", startGame);
+  bindUI("startRaceBtn", () => startRace());
+  bindUI("retryBtn", () => lastPlay === "race" ? startRace() : startGame());
   bindUI("homeBtn", backToTitle);
   bindUI("resumeBtn", resume);
   bindUI("quitBtn", backToTitle);
   input.onEscape = () => {
-    if (mode === "run") pause();
+    if (mode === "run" || mode === "race") pause();
     else if (mode === "pause") resume();
   };
   input.onMute = () => {
@@ -22906,12 +24873,25 @@ void main() {
       stage.render();
       return;
     }
-    const running = mode === "run" && player.alive;
     const actions = input.consume();
     input.update();
+    if (mode === "race" && raceState === "countdown") {
+      cdT -= rawDt;
+      const label = cdT <= 0.45 ? "GO" : String(Math.min(3, Math.max(1, Math.ceil(cdT))));
+      if (label !== lastCd) {
+        lastCd = label;
+        hud.countdown(label);
+        audio.ui();
+      }
+      if (cdT <= 0) {
+        raceState = "go";
+        hud.countdown(null);
+      }
+    }
+    const running = (mode === "run" || mode === "race" && raceState === "go") && player.alive;
     baseSpeed = Math.min(34, 12 + dist * 0.018);
     const diff = clamp2(dist / 1600, 0, 1);
-    speed = baseSpeed * (odT > 0 ? 1.5 : 1);
+    speed = baseSpeed * (odT > 0 ? 1.5 : 1) * player.speedMul;
     city.env = { speed: baseSpeed, diff };
     if (odCd > 0) odCd -= dt;
     if (running && actions.dash) {
@@ -22933,7 +24913,8 @@ void main() {
       if (odT <= 0) hud.speedFx(false);
     }
     if (running) {
-      dist += speed * dt;
+      if (mode === "race") dist = player.pos.z;
+      else dist += speed * dt;
       player.update(dt, input, city, speed, actions, odT > 0);
       const gliding = player.glideT > 0;
       if (gliding && !glideWas) hud.toast(isCoarse ? "\u4E0B\u62C9\u53EF\u7ACB\u5373\u843D\u5730" : "S / \u2193 \u53EF\u7ACB\u5373\u843D\u5730", 1200);
@@ -22947,7 +24928,7 @@ void main() {
         timeScale = 1;
         gameOver();
       }
-    } else if (mode === "over") {
+    } else if (mode === "over" && lastPlay !== "race") {
       player.update(dt, input, city, speed, actions, false);
     }
     if (running) {
@@ -22979,7 +24960,7 @@ void main() {
         }
       }
     }
-    city.update(player.pos.z);
+    city.update(mode === "race" ? Math.max(player.pos.z, race.maxZ()) : player.pos.z);
     daylight.update(dist);
     if (mode === "run" && daylight.phase !== lastPhase) {
       lastPhase = daylight.phase;
@@ -22991,6 +24972,12 @@ void main() {
     city.animateCoins(elapsed);
     fx.update(dt);
     audio.setWind(clamp2((speed - 10) / 26, 0, 1) + (odT > 0 ? 0.15 : 0));
+    if (mode === "race") {
+      race.update(running ? dt : 0, player.pos.z);
+      if (raceState === "go" && player.pos.z >= RACE_LEN) finishRace();
+      else hud.board(race.rows(player.pos.z), fmtTime(race.time));
+    }
+    hud.hit(player.hitFlash);
     player.applyCamera(stage.camera);
     if (shakeT > 0) {
       shakeT -= rawDt;
@@ -23005,12 +24992,12 @@ void main() {
       stage.camera.updateProjectionMatrix();
     }
     hud.speedFx(odT > 0);
-    if (player.pos.z > 1200) {
+    if (mode !== "race" && player.pos.z > 1200) {
       const D = 1e3;
       player.pos.z -= D;
       city.rebase(D);
     }
-    if (running || mode === "run") {
+    if (running || mode === "run" || mode === "race") {
       hud.hud(dist, best, coins, energy, odT > 0, odCd);
     }
     stage.update(dt, stage.camera.position);
@@ -23024,10 +25011,18 @@ void main() {
       return speed;
     },
     startGame,
+    startRace,
     player,
     city,
+    race,
     daylight,
     stage,
+    get raceState() {
+      return raceState;
+    },
+    get RACE_LEN() {
+      return RACE_LEN;
+    },
     get dist() {
       return dist;
     },
@@ -23050,6 +25045,9 @@ void main() {
   };
   if (location.search.includes("auto")) {
     setTimeout(() => startGame(), 500);
+  }
+  if (location.search.includes("race")) {
+    setTimeout(() => startRace(12345), 500);
   }
   if (location.search.includes("sim")) {
     setTimeout(() => {
