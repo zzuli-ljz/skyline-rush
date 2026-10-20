@@ -29,6 +29,9 @@
   </div>
 
   <div id="toast" class="toast"></div>
+  <div id="raceBoard" class="race-board"></div>
+  <div id="countdown" class="countdown"></div>
+  <div id="hitFlash" class="hit-flash"></div>
 
   <div id="title" class="screen visible">
     <div class="panel title-panel">
@@ -36,7 +39,10 @@
       <h1>天际疾行</h1>
       <div class="sub">SKYLINE RUSH</div>
       <p class="desc">黄昏雨后，你在城市之巅朝着落日狂奔。<br/>跨越楼缝、钻过横梁、收集芯片，释放过载冲刺。</p>
-      <button id="startBtn" class="btn primary">开始奔跑</button>
+      <div class="btn-row">
+        <button id="startBtn" class="btn primary">开始奔跑</button>
+        <button id="startRaceBtn" class="btn ghost">竞速赛 · 3 人</button>
+      </div>
       <div class="keys">
         <div class="key-row"><span class="kbd">A</span><span class="kbd">D</span><em>左右移动</em></div>
         <div class="key-row"><span class="kbd wide">SPACE</span><em>跳跃</em></div>
@@ -52,9 +58,9 @@
     <div class="panel over-panel">
       <div id="deathLabel" class="death-label">你坠入了楼与楼之间的黄昏</div>
       <div class="final-grid">
-        <div class="final-cell"><i>奔跑距离</i><b><span id="finalDist">0</span><em>m</em></b></div>
-        <div class="final-cell"><i>芯片</i><b id="finalCoins">0</b></div>
-        <div class="final-cell"><i>最佳</i><b><span id="finalBest">0</span><em>m</em></b></div>
+        <div class="final-cell"><i id="f1l">奔跑距离</i><b><span id="finalDist">0</span><em id="f1u">m</em></b></div>
+        <div class="final-cell"><i id="f2l">芯片</i><b id="finalCoins">0</b></div>
+        <div class="final-cell"><i id="f3l">最佳</i><b><span id="finalBest">0</span><em id="f3u">m</em></b></div>
       </div>
       <div id="newRecord" class="new-record">★ 新纪录 ★</div>
       <div class="btn-row">
