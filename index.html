@@ -32,6 +32,9 @@
   <div id="raceBoard" class="race-board"></div>
   <div id="countdown" class="countdown"></div>
   <div id="hitFlash" class="hit-flash"></div>
+  <div id="skillBar" class="skill-bar"></div>
+  <div id="buffBar" class="buff-bar"></div>
+  <div id="blackout" class="blackout-mask"></div>
 
   <div id="title" class="screen visible">
     <div class="panel title-panel">
@@ -43,11 +46,15 @@
         <button id="startBtn" class="btn primary">开始奔跑</button>
         <button id="startRaceBtn" class="btn ghost">竞速赛 · 3 人</button>
       </div>
+      <div class="btn-row">
+        <button id="onlineBtn" class="btn ghost wide">联机 · 和朋友比一场</button>
+      </div>
       <div class="keys">
         <div class="key-row"><span class="kbd">A</span><span class="kbd">D</span><em>左右移动</em></div>
         <div class="key-row"><span class="kbd wide">SPACE</span><em>跳跃</em></div>
         <div class="key-row"><span class="kbd">S</span><em>滑铲 / 空中下压</em></div>
         <div class="key-row"><span class="kbd">SHIFT</span><em>过载冲刺（耗能 50）</em></div>
+        <div class="key-row"><span class="kbd">1</span><span class="kbd">2</span><span class="kbd">3</span><em>对第 N 名释放技能</em></div>
         <div class="key-row"><span class="kbd">Esc</span><em>暂停</em><span class="kbd">M</span><em>静音</em></div>
       </div>
       <div class="hint">手机：<b>左右滑动转向</b> · <b>上滑跳跃</b> · <b>下滑滑铲</b> · 右下角冲刺</div>
@@ -66,6 +73,34 @@
       <div class="btn-row">
         <button id="retryBtn" class="btn primary">再跑一次</button>
         <button id="homeBtn" class="btn ghost">回到首页</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lobby" class="screen">
+    <div class="panel lobby-panel">
+      <div class="kicker">ONLINE RACE</div>
+      <h2>联机竞速</h2>
+      <div id="lobbySetup" class="lobby-setup">
+        <input id="nameInput" class="lobby-input" maxlength="8" placeholder="你的名字" />
+        <button id="createRoomBtn" class="btn primary">创建房间</button>
+        <div class="lobby-join">
+          <input id="codeInput" class="lobby-input code" maxlength="6" placeholder="房间码" autocomplete="off" />
+          <button id="joinRoomBtn" class="btn ghost">加入</button>
+        </div>
+      </div>
+      <div id="lobbyRoom" class="lobby-room">
+        <div class="lobby-code">房间码 <b id="roomCode">------</b></div>
+        <div id="lobbyList" class="lobby-list"></div>
+        <div class="btn-row">
+          <button id="roomStartBtn" class="btn primary">开始比赛</button>
+          <button id="roomLeaveBtn" class="btn ghost">离开</button>
+        </div>
+        <div class="lobby-hint">最多 3 人 · 好友输入房间码即可加入 · 中途掉线由 AI 接管</div>
+      </div>
+      <div id="lobbyStatus" class="lobby-status"></div>
+      <div class="btn-row">
+        <button id="lobbyBackBtn" class="btn ghost">返回</button>
       </div>
     </div>
   </div>
