@@ -159,10 +159,13 @@ export class City {
     }
   }
 
-  reset() {
+  // seed 决定整条赛道：同一个种子 = 完全相同的楼群、障碍与芯片位置。
+  // 竞速模式靠这一点让所有客户端各自本地生成同一条赛道，不需要同步关卡数据。
+  reset(seed) {
     for (const s of this.segments) this._freeSegment(s);
     this.segments = [];
-    this.rng = mulberry32((Math.random() * 1e9) | 0);
+    this.seed = (seed === undefined ? (Math.random() * 1e9) | 0 : seed) | 0;
+    this.rng = mulberry32(this.seed);
     // 起始安全平台
     const seg = this._makeSegment({ z1: -40 }, 0);
     seg.z0 = -40;
@@ -230,7 +233,12 @@ export class City {
   _genOne() {
     const prev = this.segments[this.segments.length - 1];
     const rng = this.rng;
-    const { speed, diff } = this.env;
+    // 生成参数只取决于"关卡位置"，不取决于本机已经跑了多远。
+    // 原来用 this.env.diff（由本机 dist 决定），会导致跑得快的人地图更难，
+    // 同一张种子在三个人那里长成三条不同的赛道。
+    const pos = Math.max(0, this.nextZ - 45);
+    const speed = Math.min(34, 12 + pos * 0.018);
+    const diff = clamp(pos / 1600, 0, 1);
 
     const L = 14 + rng() * 15 + diff * 5;
     const r = rng();
@@ -431,6 +439,15 @@ export class City {
       if (z >= s.z0 - 0.2 && z <= s.z1 + 0.2 && x >= s.cx - s.w / 2 - 0.2 && x <= s.cx + s.w / 2 + 0.2) {
         if (!best || s.y > best.y) best = s;
       }
+    }
+    return best;
+  }
+
+  // 只按 z 找平台（不限制 x）：竞速模式复活时用来把玩家拉回楼顶
+  platformNear(z) {
+    let best = null;
+    for (const s of this.segments) {
+      if (z >= s.z0 && z <= s.z1 && (!best || s.y > best.y)) best = s;
     }
     return best;
   }
