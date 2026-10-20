@@ -23360,10 +23360,10 @@ void main() {
       for (const i of seg.bIdx) this._releaseBuilding(i);
       for (const c of seg.coins) if (!c.taken) this._releaseCoin(c.idx);
     }
-    update(playerZ) {
+    update(playerZ, recycleZ = playerZ) {
       let guard = 8;
       while (this.nextZ < playerZ + 280 && guard-- > 0) this._genOne();
-      while (this.segments.length > 2 && this.segments[0].z1 < playerZ - 45) {
+      while (this.segments.length > 2 && this.segments[0].z1 < recycleZ - 45) {
         this._freeSegment(this.segments.shift());
       }
     }
@@ -24992,7 +24992,10 @@ void main() {
         }
       }
     }
-    city.update(mode === "race" ? Math.max(player.pos.z, race.maxZ()) : player.pos.z);
+    city.update(
+      mode === "race" ? Math.max(player.pos.z, race.maxZ()) : player.pos.z,
+      player.pos.z
+    );
     daylight.update(dist);
     if (mode === "run" && daylight.phase !== lastPhase) {
       lastPhase = daylight.phase;
