@@ -423,11 +423,14 @@ export class City {
     for (const c of seg.coins) if (!c.taken) this._releaseCoin(c.idx);
   }
 
-  update(playerZ) {
+  update(playerZ, recycleZ = playerZ) {
     // 每帧限量生成，防止一次性造出上百段（瞬移/掉帧时）
     let guard = 8;
     while (this.nextZ < playerZ + 280 && guard-- > 0) this._genOne();
-    while (this.segments.length > 2 && this.segments[0].z1 < playerZ - 45) {
+    // 回收基准用 recycleZ（= 玩家自己的位置）：竞速时幽灵可能领先很多，
+    // 若按最前面的人回收，落后玩家脚下的楼顶会被当成"身后 45m 外"拆掉，
+    // 表现为刚复活站上去地板就凭空消失，然后无限坠落循环。
+    while (this.segments.length > 2 && this.segments[0].z1 < recycleZ - 45) {
       this._freeSegment(this.segments.shift());
     }
   }
