@@ -23385,6 +23385,40 @@ void main() {
       }
       return best2;
     }
+    // 竞速复活点：优先把玩家送到"前方最近的一块楼顶"，而不是原地升起。
+    // 原地升起会形成死循环：落回原处 → 又踩空 → 再升起，玩家看起来一直在原地往上弹。
+    respawnPoint(x, z, reach = 60) {
+      const nearest = (list) => {
+        let best2 = null;
+        for (const s of list) if (!best2 || s.z0 < best2.z0) best2 = s;
+        return best2;
+      };
+      const fit = [];
+      const any = [];
+      for (const s of this.segments) {
+        if (s.z0 < z - 1 || s.z0 > z + reach) continue;
+        any.push(s);
+        const half2 = s.w / 2;
+        if (x >= s.cx - half2 + 0.5 && x <= s.cx + half2 - 0.5) fit.push(s);
+      }
+      let seg = nearest(fit) || nearest(any);
+      if (!seg) seg = this.platformNear(z);
+      if (!seg) {
+        for (const s of this.segments) if (s.z1 >= z - 1 && (!seg || s.z1 > seg.z1)) seg = s;
+      }
+      if (!seg) return null;
+      const half = seg.w / 2;
+      const loX = seg.cx - half + 0.45;
+      const hiX = seg.cx + half - 0.45;
+      const loZ = seg.z0 + 1.2;
+      const hiZ = seg.z1 - 0.6;
+      return {
+        seg,
+        x: hiX > loX ? clamp2(x, loX, hiX) : seg.cx,
+        y: seg.y,
+        z: hiZ > loZ ? clamp2(Math.max(z, loZ), loZ, hiZ) : (seg.z0 + seg.z1) / 2
+      };
+    }
     obstaclesNear(z, range = 2) {
       const out = [];
       for (const s of this.segments) {
@@ -23698,30 +23732,28 @@ void main() {
         spread: 0.9
       });
     }
-    // 竞速模式：掉下楼不判负，拉回掉下去的那块楼顶，扣速度继续跑
+    // 竞速模式：掉下楼不判负，把人送到前方最近的楼顶，扣速度继续跑
     respawn(city2) {
-      let z = this.lastGroundZ - 2;
-      let seg = city2.platformAt(this.lastGroundX, z) || city2.platformNear(z);
-      if (!seg) {
-        z = this.pos.z;
-        seg = city2.platformNear(z);
-      }
-      if (!seg) {
+      const p = city2.respawnPoint(this.pos.x, this.pos.z);
+      if (!p) {
         this.die("fall");
         return;
       }
-      const x = clamp2(this.lastGroundX, seg.cx - seg.w / 2 + 0.5, seg.cx + seg.w / 2 - 0.5);
-      const zz = clamp2(z, seg.z0 + 0.8, seg.z1 - 0.8);
-      this.pos.set(x, seg.y + 0.6, zz);
-      this.prevY = this.pos.y;
+      this.pos.set(p.x, p.y, p.z);
+      this.prevY = p.y;
       this.vy = 0;
       this.vx = 0;
-      this.grounded = false;
+      this.grounded = true;
+      this.sliding = false;
+      this.coyote = 0.11;
       this.glideT = 0;
+      this.lastGroundY = p.y;
+      this.lastGroundX = p.x;
+      this.lastGroundZ = p.z;
       this.speedMul = 0.55;
       this.speedMulT = 1.2;
       this.hitFlash = 0.8;
-      this.invulnT = 0.6;
+      this.invulnT = 0.9;
       this.audio.fall();
     }
     die(type) {
