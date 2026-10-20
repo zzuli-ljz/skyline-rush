@@ -8,6 +8,7 @@ import { AudioEngine } from './audio.js';
 import { HUD } from './hud.js';
 import { Input } from './input.js';
 import { Daylight } from './daylight.js';
+import { Race, RACE_LEN } from './race.js';
 import { clamp, damp } from './utils.js';
 
 // 运行时错误可视化（调试用）
@@ -30,11 +31,18 @@ const player = new Player(stage, audio, fx);
 const hud = new HUD();
 const input = new Input();
 const daylight = new Daylight(stage, city);
+const race = new Race(stage, city);
 
 const isCoarse = matchMedia('(pointer: coarse)').matches;
 const BEST_KEY = 'skyline-rush-best';
+const RACE_BEST_KEY = 'skyline-rush-race-best';
 
-let mode = 'title'; // title | run | over | pause
+let mode = 'title'; // title | run | race | over | pause
+let lastPlay = 'run'; // 用于"再跑一次"回到正确的模式
+let pauseFrom = 'run';
+let raceState = 'idle'; // idle | countdown | go | done
+let cdT = 0;
+let lastCd = '';
 let baseSpeed = 12;
 let speed = 12;
 let dist = 0;
@@ -64,6 +72,8 @@ function startGame() {
   audio.init();
   city.reset();
   player.reset(0);
+  player.raceMode = false;
+  race.setVisible(false);
   baseSpeed = 12;
   speed = 12;
   dist = 0;
@@ -78,9 +88,54 @@ function startGame() {
   deathDelay = 0;
   timeScale = 1;
   mode = 'run';
+  lastPlay = 'run';
+  raceState = 'idle';
+  hud.race(false);
+  hud.countdown(null);
   hud.showScreen(null);
   hud.touch(isCoarse);
   // 手机端：借用户手势顺手进全屏（浏览器要求全屏必须由手势触发）
+  if (isCoarse && !fsEl()) toggleFullscreen();
+  syncRotate();
+  audio.ui();
+}
+
+function fmtTime(t) {
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return `${m}:${s.toFixed(2).padStart(5, '0')}`;
+}
+
+// 竞速赛：固定赛道 + 3 人（本地 1 人 + 2 个幽灵），撞/掉只扣速度
+function startRace(seed) {
+  audio.init();
+  const s = seed === undefined ? (Math.random() * 1e9) | 0 : seed | 0;
+  city.reset(s);
+  player.reset(0);
+  player.raceMode = true;
+  race.reset(s, { ai: 2, len: RACE_LEN });
+  race.setVisible(true);
+  baseSpeed = 12;
+  speed = 12;
+  dist = 0;
+  coins = 0;
+  energy = 0;
+  odT = 0;
+  odCd = 0;
+  glideWas = false;
+  lastPhase = 0;
+  daylight.update(0);
+  streak = 0;
+  deathDelay = 0;
+  timeScale = 1;
+  mode = 'race';
+  lastPlay = 'race';
+  raceState = 'countdown';
+  cdT = 3.4;
+  lastCd = '';
+  hud.showScreen(null);
+  hud.race(true);
+  hud.touch(isCoarse);
   if (isCoarse && !fsEl()) toggleFullscreen();
   syncRotate();
   audio.ui();
@@ -91,7 +146,7 @@ function syncRotate() {
   const hint = document.getElementById('rotateHint');
   if (!hint) return;
   const portrait = window.innerHeight > window.innerWidth;
-  hint.classList.toggle('show', isCoarse && portrait && mode === 'run');
+  hint.classList.toggle('show', isCoarse && portrait && (mode === 'run' || mode === 'race'));
 }
 window.addEventListener('resize', syncRotate);
 
@@ -111,9 +166,35 @@ function gameOver() {
   syncRotate();
 }
 
+// 竞速结束：不再有"死亡演出"，直接结算名次与用时
+function finishRace() {
+  mode = 'over';
+  raceState = 'done';
+  player.raceMode = false;
+  const place = race.place;
+  const t = race.time;
+  const rb = +(localStorage.getItem(RACE_BEST_KEY) || 0);
+  const isBest = rb === 0 || t < rb;
+  if (isBest) localStorage.setItem(RACE_BEST_KEY, String(t));
+  hud.setRaceResult(place, race.opponents.length + 1, fmtTime(t), coins, isBest);
+  hud.showScreen('over');
+  hud.race(false);
+  hud.touch(false);
+  hud.speedFx(false);
+  hud.countdown(null);
+  hud.hit(0);
+  syncRotate();
+  audio.ui();
+}
+
 function backToTitle() {
   mode = 'title';
   ghostZ = 0;
+  player.raceMode = false;
+  race.setVisible(false);
+  hud.race(false);
+  hud.countdown(null);
+  hud.hit(0);
   city.reset();
   hud.showScreen('title');
   hud.speedFx(false);
@@ -122,7 +203,8 @@ function backToTitle() {
 }
 
 function pause() {
-  if (mode !== 'run') return;
+  if (mode !== 'run' && mode !== 'race') return;
+  pauseFrom = mode;
   mode = 'pause';
   hud.showScreen('pause');
   hud.touch(false);
@@ -131,7 +213,7 @@ function pause() {
 
 function resume() {
   if (mode !== 'pause') return;
-  mode = 'run';
+  mode = pauseFrom;
   hud.showScreen(null);
   hud.touch(isCoarse);
   syncRotate();
@@ -149,12 +231,13 @@ function bindUI(id, fn) {
   });
 }
 bindUI('startBtn', startGame);
-bindUI('retryBtn', startGame);
+bindUI('startRaceBtn', () => startRace());
+bindUI('retryBtn', () => (lastPlay === 'race' ? startRace() : startGame()));
 bindUI('homeBtn', backToTitle);
 bindUI('resumeBtn', resume);
 bindUI('quitBtn', backToTitle);
 input.onEscape = () => {
-  if (mode === 'run') pause();
+  if (mode === 'run' || mode === 'race') pause();
   else if (mode === 'pause') resume();
 };
 input.onMute = () => {
@@ -256,14 +339,30 @@ function animate() {
     return;
   }
 
-  // ---- 游戏进行中（run / 死亡演出 / over） ----
-  const running = mode === 'run' && player.alive;
+  // ---- 游戏进行中（run / race / 死亡演出 / over） ----
   const actions = input.consume();
   input.update();
 
+  // 竞速倒计时：3-2-1-GO，期间所有人静止，起跑才公平
+  if (mode === 'race' && raceState === 'countdown') {
+    cdT -= rawDt;
+    const label = cdT <= 0.45 ? 'GO' : String(Math.min(3, Math.max(1, Math.ceil(cdT))));
+    if (label !== lastCd) {
+      lastCd = label;
+      hud.countdown(label);
+      audio.ui();
+    }
+    if (cdT <= 0) {
+      raceState = 'go';
+      hud.countdown(null);
+    }
+  }
+
+  const running = (mode === 'run' || (mode === 'race' && raceState === 'go')) && player.alive;
+
   baseSpeed = Math.min(34, 12 + dist * 0.018);
   const diff = clamp(dist / 1600, 0, 1);
-  speed = baseSpeed * (odT > 0 ? 1.5 : 1);
+  speed = baseSpeed * (odT > 0 ? 1.5 : 1) * player.speedMul;
   city.env = { speed: baseSpeed, diff };
 
   // 过载冲刺（有冷却：冲刺 4 秒 + 冷却 6 秒，防止连放）
@@ -288,7 +387,9 @@ function animate() {
   }
 
   if (running) {
-    dist += speed * dt;
+    // 竞速模式以真实位置为准（掉下去被拉回来时距离会同步回退，不刷里程）
+    if (mode === 'race') dist = player.pos.z;
+    else dist += speed * dt;
     player.update(dt, input, city, speed, actions, odT > 0);
     // 缓降开始提示：告诉玩家可以自己决定何时落地
     const gliding = player.glideT > 0;
@@ -304,7 +405,7 @@ function animate() {
       timeScale = 1;
       gameOver();
     }
-  } else if (mode === 'over') {
+  } else if (mode === 'over' && lastPlay !== 'race') {
     player.update(dt, input, city, speed, actions, false);
   }
 
@@ -343,8 +444,8 @@ function animate() {
     }
   }
 
-  // 世界更新
-  city.update(player.pos.z);
+  // 世界更新（竞速时按最前面的对手生成，避免领跑的幽灵跑出已生成的地图）
+  city.update(mode === 'race' ? Math.max(player.pos.z, race.maxZ()) : player.pos.z);
   // 日光推进：每 400m 一档，纯视觉，不参与物理
   daylight.update(dist);
   if (mode === 'run' && daylight.phase !== lastPhase) {
@@ -357,6 +458,14 @@ function animate() {
   city.animateCoins(elapsed);
   fx.update(dt);
   audio.setWind(clamp((speed - 10) / 26, 0, 1) + (odT > 0 ? 0.15 : 0));
+
+  // 竞速：幽灵推进 → 名次 → 终点
+  if (mode === 'race') {
+    race.update(running ? dt : 0, player.pos.z);
+    if (raceState === 'go' && player.pos.z >= RACE_LEN) finishRace();
+    else hud.board(race.rows(player.pos.z), fmtTime(race.time));
+  }
+  hud.hit(player.hitFlash);
 
   // 相机
   player.applyCamera(stage.camera);
@@ -375,13 +484,14 @@ function animate() {
   hud.speedFx(odT > 0);
 
   // 浮点原点回正（世界整体后移，dist 不受影响）
-  if (player.pos.z > 1200) {
+  // 竞速模式不做回正：赛道有终点，而且回正会让各客户端的坐标错开
+  if (mode !== 'race' && player.pos.z > 1200) {
     const D = 1000;
     player.pos.z -= D;
     city.rebase(D);
   }
 
-  if (running || mode === 'run') {
+  if (running || mode === 'run' || mode === 'race') {
     hud.hud(dist, best, coins, energy, odT > 0, odCd);
   }
 
@@ -398,10 +508,18 @@ window.__game = {
     return speed;
   },
   startGame,
+  startRace,
   player,
   city,
+  race,
   daylight,
   stage,
+  get raceState() {
+    return raceState;
+  },
+  get RACE_LEN() {
+    return RACE_LEN;
+  },
   get dist() {
     return dist;
   },
@@ -426,6 +544,9 @@ window.__game = {
 // 调试：?auto 直接开局；?sim 自动跑酷（会看路：遇缺口跳、遇横梁滑、遇障碍跳）
 if (location.search.includes('auto')) {
   setTimeout(() => startGame(), 500);
+}
+if (location.search.includes('race')) {
+  setTimeout(() => startRace(12345), 500);
 }
 if (location.search.includes('sim')) {
   setTimeout(() => {
