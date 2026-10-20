@@ -45,6 +45,15 @@ export class Player {
     this.hitFlash = 0;
     this.lastGroundX = 0;
     this.lastGroundZ = 0;
+    // ---- 技能状态 ----
+    this.buffUp = 1; // 疾风倍率
+    this.buffUpT = 0;
+    this.buffDown = 1; // 逆风倍率
+    this.buffDownT = 0;
+    this.shieldT = 0; // 护盾：抵挡一次撞击/坠落
+    this.magnetT = 0; // 磁力：吸芯片范围变大
+    this.noJumpT = 0; // 锁跳
+    this.noFuelT = 0; // 断电：无法过载
     this._v = new THREE.Vector3();
   }
 
@@ -71,6 +80,14 @@ export class Player {
     this.hitFlash = 0;
     this.lastGroundX = 0;
     this.lastGroundZ = 0;
+    this.buffUp = 1;
+    this.buffUpT = 0;
+    this.buffDown = 1;
+    this.buffDownT = 0;
+    this.shieldT = 0;
+    this.magnetT = 0;
+    this.noJumpT = 0;
+    this.noFuelT = 0;
   }
 
   get height() {
@@ -103,6 +120,20 @@ export class Player {
     if (this.invulnT > 0) this.invulnT -= dt;
     this.hitFlash = damp(this.hitFlash, 0, 5, dt);
 
+    // 技能计时
+    if (this.buffUpT > 0) {
+      this.buffUpT -= dt;
+      if (this.buffUpT <= 0) this.buffUp = 1;
+    }
+    if (this.buffDownT > 0) {
+      this.buffDownT -= dt;
+      if (this.buffDownT <= 0) this.buffDown = 1;
+    }
+    if (this.shieldT > 0) this.shieldT -= dt;
+    if (this.magnetT > 0) this.magnetT -= dt;
+    if (this.noJumpT > 0) this.noJumpT -= dt;
+    if (this.noFuelT > 0) this.noFuelT -= dt;
+
     // 过载刚结束且人在空中 → 进入缓降余量：冲刺恰好停在楼缝上空时不会直接坠楼
     if (this._odPrev && !overdrive && !this.grounded) this.glideT = 2.0;
     this._odPrev = overdrive;
@@ -124,7 +155,7 @@ export class Player {
     if (actions.jump) this.jumpBuf = 0.14;
     this.jumpBuf -= dt;
     this.coyote -= dt;
-    if (this.jumpBuf > 0 && (this.grounded || this.coyote > 0)) {
+    if (this.jumpBuf > 0 && (this.grounded || this.coyote > 0) && this.noJumpT <= 0) {
       this.vy = JUMP;
       this.grounded = false;
       this.sliding = false;
@@ -265,6 +296,18 @@ export class Player {
   // 竞速模式：撞上障碍不是终点，而是掉一大截速度（并短暂无敌，避免卡在箱子里连撞）
   hit(o) {
     if (this.invulnT > 0) return;
+    // 护盾：直接吃掉这次撞击，不减速
+    if (this.shieldT > 0) {
+      this.shieldT = 0;
+      this.invulnT = 0.9;
+      this.hitFlash = 0.45;
+      this.audio.land(true);
+      this.fx.burst(this._v.set(this.pos.x, this.pos.y + 1.1, this.pos.z), 0x8affc1, {
+        count: 26, speed: 5, up: 2, life: 0.7, spread: 0.9,
+      });
+      if (this.onShieldBreak) this.onShieldBreak('crash');
+      return;
+    }
     this.invulnT = 0.85;
     this.speedMul = 0.5;
     this.speedMulT = 1.15;
@@ -283,6 +326,11 @@ export class Player {
       this.die('fall'); // 兜底：地图真的断了才按坠楼处理
       return;
     }
+    const shielded = this.shieldT > 0;
+    if (shielded) {
+      this.shieldT = 0;
+      if (this.onShieldBreak) this.onShieldBreak('fall');
+    }
     this.pos.set(p.x, p.y, p.z);
     this.prevY = p.y;
     this.vy = 0;
@@ -296,9 +344,9 @@ export class Player {
     this.lastGroundY = p.y;
     this.lastGroundX = p.x;
     this.lastGroundZ = p.z;
-    this.speedMul = 0.55;
-    this.speedMulT = 1.2;
-    this.hitFlash = 0.8;
+    this.speedMul = shielded ? 0.85 : 0.55; // 有盾只掉一点速度
+    this.speedMulT = shielded ? 0.6 : 1.2;
+    this.hitFlash = shielded ? 0.3 : 0.8;
     this.invulnT = 0.9; // 落点可能压在障碍上，给够起身时间
     this.audio.fall();
   }
