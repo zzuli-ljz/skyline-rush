@@ -26,6 +26,9 @@ export class HUD {
       raceBoard: $('raceBoard'),
       countdown: $('countdown'),
       hitFlash: $('hitFlash'),
+      skillBar: $('skillBar'),
+      buffBar: $('buffBar'),
+      blackout: $('blackout'),
       f1l: $('f1l'),
       f2l: $('f2l'),
       f3l: $('f3l'),
@@ -36,6 +39,8 @@ export class HUD {
     this._hintT = null;
     this._lastDist = -1;
     this._boardKey = '';
+    this._skillKey = '';
+    this._buffKey = '';
   }
 
   hud(dist, best, coins, energy, odActive, odCd = 0) {
@@ -98,6 +103,51 @@ export class HUD {
     this.el.hitFlash.style.opacity = v < 0.02 ? '0' : (v * 0.62).toFixed(2);
   }
 
+  // 待释放的攻击技能槽（传 null 清空）
+  skill(sk) {
+    const key = sk ? sk.icon + sk.name : '';
+    if (key === this._skillKey) return;
+    this._skillKey = key;
+    const el = this.el.skillBar;
+    if (!el) return;
+    if (!sk) {
+      el.innerHTML = '';
+      el.classList.remove('on');
+      return;
+    }
+    el.innerHTML =
+      `<div class="skill-slot" style="--c:#ff9a5c"><b>${sk.icon}</b><span>${sk.name}</span>` +
+      `<em>按 1/2/3 选目标</em></div>`;
+    el.classList.add('on');
+  }
+
+  // 当前生效的 buff / debuff
+  buffs(list) {
+    const key = list.map((b) => b.icon + (b.t > 0 ? Math.ceil(b.t) : '')).join('|');
+    if (key === this._buffKey) return;
+    this._buffKey = key;
+    const el = this.el.buffBar;
+    if (!el) return;
+    el.innerHTML = list
+      .map(
+        (b) =>
+          `<div class="buff" style="--c:${b.color || '#9fe4ff'}"><b>${b.icon}</b><span>${b.name}</span>` +
+          (b.t > 0 ? `<em>${Math.ceil(b.t)}</em>` : '') +
+          `</div>`
+      )
+      .join('');
+  }
+
+  // 断电遮罩：0~1
+  blackout(v) {
+    if (!this.el.blackout) return;
+    const o = v <= 0 ? '0' : (v * 0.92).toFixed(2);
+    if (o !== this._blackoutV) {
+      this._blackoutV = o;
+      this.el.blackout.style.opacity = o;
+    }
+  }
+
   touch(on) {
     this.el.touchUI.classList.toggle('on', on);
     document.getElementById('touchArea').classList.toggle('on', on);
@@ -120,7 +170,12 @@ export class HUD {
       this.el[k].classList.toggle('visible', k === name);
     }
     this.el.hud.classList.toggle('hidden', name === 'title');
-    if (name === 'title') this.race(false);
+    if (name === 'title') {
+      this.race(false);
+      this.skill(null);
+      this.buffs([]);
+      this.blackout(0);
+    }
   }
 
   setDeath(type) {
