@@ -276,30 +276,30 @@ export class Player {
     });
   }
 
-  // 竞速模式：掉下楼不判负，拉回掉下去的那块楼顶，扣速度继续跑
+  // 竞速模式：掉下楼不判负，把人送到前方最近的楼顶，扣速度继续跑
   respawn(city) {
-    let z = this.lastGroundZ - 2;
-    let seg = city.platformAt(this.lastGroundX, z) || city.platformNear(z);
-    if (!seg) {
-      z = this.pos.z;
-      seg = city.platformNear(z);
-    }
-    if (!seg) {
+    const p = city.respawnPoint(this.pos.x, this.pos.z);
+    if (!p) {
       this.die('fall'); // 兜底：地图真的断了才按坠楼处理
       return;
     }
-    const x = clamp(this.lastGroundX, seg.cx - seg.w / 2 + 0.5, seg.cx + seg.w / 2 - 0.5);
-    const zz = clamp(z, seg.z0 + 0.8, seg.z1 - 0.8);
-    this.pos.set(x, seg.y + 0.6, zz);
-    this.prevY = this.pos.y;
+    this.pos.set(p.x, p.y, p.z);
+    this.prevY = p.y;
     this.vy = 0;
     this.vx = 0;
-    this.grounded = false;
+    // 直接站在楼顶上（而不是悬空 0.6m 再落），并同步接地记录：
+    // 否则 lastGroundY 还停在上一个更高的楼顶，坠落判定会立刻再次触发，形成无限循环
+    this.grounded = true;
+    this.sliding = false;
+    this.coyote = 0.11;
     this.glideT = 0;
+    this.lastGroundY = p.y;
+    this.lastGroundX = p.x;
+    this.lastGroundZ = p.z;
     this.speedMul = 0.55;
     this.speedMulT = 1.2;
     this.hitFlash = 0.8;
-    this.invulnT = 0.6;
+    this.invulnT = 0.9; // 落点可能压在障碍上，给够起身时间
     this.audio.fall();
   }
 
