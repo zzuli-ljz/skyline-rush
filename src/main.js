@@ -444,8 +444,12 @@ function animate() {
     }
   }
 
-  // 世界更新（竞速时按最前面的对手生成，避免领跑的幽灵跑出已生成的地图）
-  city.update(mode === 'race' ? Math.max(player.pos.z, race.maxZ()) : player.pos.z);
+  // 世界更新：生成按最前面的对手（避免领跑的幽灵跑出已生成的地图），
+  // 回收只看玩家自己——落后玩家脚下的楼顶绝不能被拆
+  city.update(
+    mode === 'race' ? Math.max(player.pos.z, race.maxZ()) : player.pos.z,
+    player.pos.z
+  );
   // 日光推进：每 400m 一档，纯视觉，不参与物理
   daylight.update(dist);
   if (mode === 'run' && daylight.phase !== lastPhase) {
